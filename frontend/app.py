@@ -10,36 +10,35 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 strl.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# --- CSS & DESIGN (THÈME SOMBRE CORRIGÉ) ---
+# --- CSS & DESIGN (RETOUR AUX COULEURS D'ORIGINE AVEC FIX UPLOAD) ---
 design_css = """
 <style>
-    /* Arrière-plan global */
+    /* 1. RESTAURATION DE VOTRE ARRIÈRE-PLAN D'ORIGINE */
     html, body, .stApp { 
-        background: linear-gradient(135deg, rgba(13, 14, 18, 0.94) 0%, rgba(22, 25, 32, 0.98) 100%), 
+        background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%), 
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important; 
         background-size: cover !important; 
-        color: #ffffff !important; 
+        color: #ffffff; 
     }
     
-    /* Barre latérale */
-    .stSidebar { background: rgba(13, 14, 18, 0.85) !important; border-right: 1px solid #334155; }
+    /* 2. RESTAURATION DE VOTRE BARRE LATÉRALE ET BOUTON SOMBRE */
+    .stSidebar { background: rgba(13, 14, 18, 0.8) !important; border-right: 1px solid #334155; }
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
 
-    /* --- RECOUVREMENT POUR LE WIDGET UPLOAD (FILE UPLOADER) --- */
-    /* Forcer le texte de description "Upload Compliance PDF" en blanc */
-    .stFileUploader label p {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Forcer la zone de glisser-déposer à devenir sombre et lisible */
+    /* 3. CORRECTION UNIQUEMENT DE LA ZONE D'UPLOAD BLANCHE */
+    /* Modifie le fond du rectangle blanc pour l'accorder à votre thème sombre */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: rgba(30, 41, 59, 0.7) !important; /* Fond bleu nuit transparent */
-        border: 2px dashed #475569 !important;
+        background-color: rgba(30, 41, 59, 0.5) !important; /* Noir/gris très foncé translucide */
+        border: 2px dashed #475569 !important; /* Bordure grise discrète */
         border-radius: 8px !important;
     }
 
-    /* Ajuster la couleur des textes à l'intérieur de la zone d'upload */
+    /* Force le texte de description "Upload Compliance PDF" à rester blanc */
+    .stFileUploader label p {
+        color: #ffffff !important;
+    }
+
+    /* Ajuste les textes intérieurs (Drag and drop file here) en gris clair */
     [data-testid="stFileUploaderDropzone"] span, 
     [data-testid="stFileUploaderDropzone"] small {
         color: #cbd5e1 !important;
