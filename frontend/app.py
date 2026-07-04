@@ -10,17 +10,40 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 strl.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# --- CSS & DESIGN (ARRIÈRE-PLAN VOITURE) ---
+# --- CSS & DESIGN (THÈME SOMBRE CORRIGÉ) ---
 design_css = """
 <style>
+    /* Arrière-plan global */
     html, body, .stApp { 
-        background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%), 
+        background: linear-gradient(135deg, rgba(13, 14, 18, 0.94) 0%, rgba(22, 25, 32, 0.98) 100%), 
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important; 
         background-size: cover !important; 
-        color: #ffffff; 
+        color: #ffffff !important; 
     }
-    .stSidebar { background: rgba(13, 14, 18, 0.8) !important; border-right: 1px solid #334155; }
+    
+    /* Barre latérale */
+    .stSidebar { background: rgba(13, 14, 18, 0.85) !important; border-right: 1px solid #334155; }
     .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
+
+    /* --- RECOUVREMENT POUR LE WIDGET UPLOAD (FILE UPLOADER) --- */
+    /* Forcer le texte de description "Upload Compliance PDF" en blanc */
+    .stFileUploader label p {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Forcer la zone de glisser-déposer à devenir sombre et lisible */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: rgba(30, 41, 59, 0.7) !important; /* Fond bleu nuit transparent */
+        border: 2px dashed #475569 !important;
+        border-radius: 8px !important;
+    }
+
+    /* Ajuster la couleur des textes à l'intérieur de la zone d'upload */
+    [data-testid="stFileUploaderDropzone"] span, 
+    [data-testid="stFileUploaderDropzone"] small {
+        color: #cbd5e1 !important;
+    }
 </style>
 """
 strl.markdown(design_css, unsafe_allow_html=True)
@@ -79,18 +102,15 @@ with strl.sidebar:
 # --- TABS ---
 tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-
-# --- DATA INTAKE (DEBUG VERSION) ---
+# --- DATA INTAKE ---
 with tab1:
     strl.header("Data Intake Portal")
     uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
     
     if uploaded_file and strl.button("🚀 Inject into Production Database"):
         try:
-            # 1. Extraction (ensure this returns the 2 required elements)
             summary, details = extract_dynamic_pdf_data(uploaded_file.read())
             
-            # 2. Local construction of lists for the 5 tables
             defects = []
             occurrences = []
             for h in details:
@@ -100,23 +120,17 @@ with tab1:
                         "defect_code": d["code"],
                         "penalty_points": d["points"]
                     })
-                    # Aggregation for occurrences
                     occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
                     if occ_found: occ_found["total_count"] += 1
                     else: occurrences.append({"defect_code": d["code"], "total_count": 1})
 
-            # 3. Secure Injection
             strl.write("Injection in progress...")
             save_to_database(summary, details, defects, occurrences)
-            
-            # 4. Success message
             strl.success("✅ Data successfully injected into all 5 tables!")
             
         except Exception as e:
-            # Displays the exact error in a red box
             strl.error(f"Injection Failed: {str(e)}")
-            strl.exception(e) # Displays the complete technical stack trace
-
+            strl.exception(e)
 
 # --- ANALYTICS REGISTER ---
 with tab2:
@@ -130,11 +144,9 @@ with tab2:
 
         with subtab1:
             df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-            # On affiche tout sauf summary_id si vous préférez
             strl.dataframe(df1.drop(columns=['summary_id']), use_container_width=True)
 
         with subtab2:
-            # JOIN pour récupérer le nom de la plante dans le tableau des audits
             query2 = """
                 SELECT s.plant, h.* FROM public.harness_audits h
                 JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
@@ -143,7 +155,6 @@ with tab2:
             strl.dataframe(df2, use_container_width=True)
 
         with subtab3:
-            # JOIN pour récupérer le nom de la plante dans le tableau des défauts
             query3 = """
                 SELECT s.plant, d.* FROM public.audit_defects_raw d
                 JOIN public.harness_audits h ON d.audit_id = h.audit_id
@@ -153,7 +164,6 @@ with tab2:
             strl.dataframe(df3, use_container_width=True)
 
         with subtab4:
-            # JOIN pour récupérer le nom de la plante dans le tableau des occurrences
             query4 = """
                 SELECT s.plant, o.* FROM public.pdf_total_occurrences o
                 JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
@@ -166,18 +176,23 @@ with tab2:
         strl.error(f"Erreur : {str(e)}")
 
 # --- DASHBOARD ---
-# --- DASHBOARD (CORRECTED) ---
 with tab3:
     strl.header("Performance Dashboard")
     try:
         conn = get_db_connection()
-        # Querying the exact lowercase column names
         df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
         conn.close()
         
         if not df_dash.empty:
-            # FIX: ensure 'y' matches the column name 'qk_avg' exactly
             fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
+            
+            # --- APPLIQUER LE MÊME THÈME SOMBRE AU GRAPHIQUE PLOTLY ---
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', # Fond transparent pour voir la voiture derrière
+                plot_bgcolor='rgba(0,0,0,0)',
+                font_color="#ffffff",
+                title_font_color="#ffffff"
+            )
             strl.plotly_chart(fig, use_container_width=True)
         else:
             strl.info("Dashboard awaiting data...")
