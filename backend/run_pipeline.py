@@ -5,13 +5,18 @@ import requests
 import re
 import time 
 
-def get_db_connection():
-    """Gère la connexion à PostgreSQL sur le port actif (5432 ou 5433)."""
-    try:
-        return psycopg2.connect(user="postgres", password="2002", host="127.0.0.1", port="5432", database="quality_db")
-    except psycopg2.OperationalError:
-        return psycopg2.connect(user="postgres", password="2002", host="127.0.0.1", port="5433", database="quality_db")
+import streamlit as st
+import psycopg2
 
+def get_db_connection():
+    # Cette syntaxe va chercher les identifiants Neon automatiquement (en local et sur le cloud)
+    return psycopg2.connect(
+        host=st.secrets["DB_HOST"],
+        database=st.secrets["DB_NAME"],
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASS"],
+        port=st.secrets["DB_PORT"]
+    )
 def call_groq_cloud(prompt):
     """Envoie une requête HTTP synchrone à l'API Groq Cloud."""
     GROQ_API_KEY = "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" 
