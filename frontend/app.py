@@ -38,30 +38,35 @@ authenticator = stauth.Authenticate(
 )
 
 # 3. Affichage du formulaire de connexion
-# Dans les versions récentes, on appelle simplement login() sans arguments pour le centre
-name, authentication_status, username = authenticator.login()
+# 3. Affichage du formulaire de connexion (Nouvelle syntaxe sans dépaquetage)
+authenticator.login()
 
-# --- GESTION DES ÉTATS D'AUTHENTIFICATION ---
-
-if authentication_status == False:
+# Vérification du statut via st.session_state (géré automatiquement par le module)
+if st.session_state.get("authentication_status") == False:
     strl.error("Identifiant ou mot de passe incorrect.")
 
-elif authentication_status == None:
+elif st.session_state.get("authentication_status") == None:
     strl.warning("Veuillez entrer votre identifiant et votre mot de passe pour accéder au portail.")
-    # L'exécution s'arrête ici visuellement tant que l'utilisateur n'a rien entré
 
-elif authentication_status:
-    # =========================================================================
-    # TOUT LE RESTE DU CODE DOIT ÊTRE ICI (INDENTÉ D'UN BLOC DE 4 ESPACES)
-    # =========================================================================
+elif st.session_state.get("authentication_status"):
+    # L'UTILISATEUR EST CONNECTÉ AVEC SUCCÈS
+    
+    # Récupérer les informations de l'utilisateur connecté depuis la session
+    name = st.session_state["name"]
+    username = st.session_state["username"]
     
     # Bouton de déconnexion dans la barre latérale
     authenticator.logout('Déconnexion', 'sidebar')
     strl.sidebar.title(f"Bienvenue {name}")
     
-    # Sauvegarder l'email de l'utilisateur connecté en mémoire de session
+    # Sauvegarder l'email de l'utilisateur connecté en mémoire de session pour vos filtres SQL
     user_email_session = credentials['usernames'][username]['email']
     strl.session_state['user_email'] = user_email_session
+
+    # =========================================================================
+    # TOUT LE RESTE DE VOTRE CODE (DESIGN, ONGLETS, INJECTION) RESTE ICI
+    # (Pensez à garder l'indentation de 4 espaces pour tout ce bloc !)
+    # =========================================================================
 
     # --- CSS & DESIGN ---
     design_css = """
