@@ -4,31 +4,40 @@ import sys
 import os
 import plotly.express as px
 import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+strl = st  # Pour la compatibilité avec votre reste de code utilisant 'strl'
 
 # 1. Configurer la page (TOUJOURS EN PREMIER)
-strl.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
+st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
 # --- PATH & IMPORT ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
-# 2. Configuration des comptes
-credentials = {
-    "usernames": {
-        "mayssa": {
-            "name": "Mayssa Quality",
-            "password": "mot_de_passe_hache_ou_clair_1", 
-            "email": "mayssa@draxlmaier.com"
-        },
-        "ahmed": {
-            "name": "Ahmed Quality",
-            "password": "mot_de_passe_hache_ou_clair_2",
-            "email": "ahmed@draxlmaier.com"
-        }
-    }
-}
+# --- CHARGEMENT DYNAMIQUE DES UTILISATEURS DEPUIS NEON ---
+def load_users_from_db():
+    credentials = {"usernames": {}}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT username, name, password_hash, email FROM users;")
+        rows = cur.fetchall()
+        for row in rows:
+            credentials["usernames"][row["username"]] = {
+                "name": row["name"],
+                "password": row["password_hash"], # stauth compare directement avec le hash
+                "email": row["email"]
+            }
+        cur.close()
+        conn.close()
+    except Exception as e:
+        st.error(f"Erreur de connexion à la base de données des utilisateurs : {e}")
+    return credentials
+
+# Charger les comptes existants
+credentials = load_users_from_db()
 
 authenticator = stauth.Authenticate(
     credentials,
@@ -37,31 +46,79 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=30
 )
 
-# 3. Affichage du formulaire de connexion
-# 3. Affichage du formulaire de connexion (Nouvelle syntaxe sans dépaquetage)
-authenticator.login()
-
-# Vérification du statut via st.session_state (géré automatiquement par le module)
-if strl.session_state.get("authentication_status") == False:
-    strl.error("Identifiant ou mot de passe incorrect.")
-
-elif strl.session_state.get("authentication_status") == None:
-    strl.warning("Veuillez entrer votre identifiant et votre mot de passe pour accéder au portail.")
-
-elif strl.session_state.get("authentication_status"):
-    # L'UTILISATEUR EST CONNECTÉ AVEC SUCCÈS
+# --- INTERFACE DE BIENVENUE (CONNEXION / INSCRIPTION) ---
+if not st.session_state.get("authentication_status"):
+    # Afficher deux onglets au centre de l'écran si l'utilisateur n'est pas connecté
+    auth_tab1, auth_tab2 = st.tabs(["🔑 Se connecter", "📝 S'inscrire / Créer un compte"])
     
-    # Récupérer les informations de l'utilisateur connecté depuis la session
-    name = strl.session_state["name"]
-    username = strl.session_state["username"]
+    with auth_tab1:
+        authenticator.login()
+        if st.session_state.get("authentication_status") == False:
+            st.error("Identifiant ou mot de passe incorrect.")
+        elif st.session_state.get("authentication_status") == None:
+            st.info("Veuillez vous connecter pour accéder à l'application.")
+            
+    with auth_tab2:
+        st.subheader("Créer un nouveau compte d'auditeur")
+        with st.form("registration_form", clear_on_submit=True):
+            new_username = st.text_input("Identifiant (ex: mayssa)").strip().lower()
+            new_name = st.text_input("Nom Complet (ex: Mayssa Quality)")
+            new_email = st.text_input("Adresse E-mail Professionnelle (ex: mayssa@draxlmaier.com)").strip()
+            new_password = st.text_input("Mot de passe", type="password")
+            confirm_password = st.text_input("Confirmer le mot de passe", type="password")
+            
+            submit_reg = st.form_submit_button("S'inscrire")
+            
+            if submit_reg:
+                if not new_username or not new_name or not new_email or not new_password:
+                    st.error("Tous les champs sont obligatoires.")
+                elif new_password != confirm_password:
+                    st.error("Les mots de passe ne correspondent pas.")
+                elif "@" not in new_email:
+                    st.error("Veuillez entrer une adresse e-mail valide.")
+                else:
+                    # Hachage sécurisé du mot de passe via streamlit_authenticator
+                    hashed_password = stauth.Hasher([new_password]).generate()[0]
+                    
+                    try:
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        # Vérifier si l'identifiant ou l'email existe déjà
+                        cur.execute("SELECT username FROM users WHERE username = %s OR email = %s", (new_username, new_email))
+                        if cur.fetchone():
+                            st.error("Cet identifiant ou cet e-mail est déjà utilisé.")
+                        else:
+                            # Insertion du nouvel utilisateur
+                            cur.execute(
+                                "INSERT INTO users (username, name, password_hash, email) VALUES (%s, %s, %s, %s)",
+                                (new_username, new_name, hashed_password, new_email)
+                            )
+                            conn.commit()
+                            st.success("Compte créé avec succès ! Vous pouvez maintenant vous connecter dans l'onglet associé.")
+                            # Forcer le rechargement pour que le nouveau compte soit immédiatement reconnu
+                            st.rerun()
+                        cur.close()
+                        conn.close()
+                    except Exception as e:
+                        st.error(f"Erreur lors de l'enregistrement : {e}")
+
+# --- ZONE SÉCURISÉE (L'UTILISATEUR EST CONNECTÉ) ---
+if st.session_state.get("authentication_status"):
+    name = st.session_state["name"]
+    username = st.session_state["username"]
     
-    # Bouton de déconnexion dans la barre latérale
+    # Déconnexion dans la barre latérale
     authenticator.logout('Déconnexion', 'sidebar')
-    strl.sidebar.title(f"Bienvenue {name}")
+    st.sidebar.title(f"Bienvenue {name}")
     
-    # Sauvegarder l'email de l'utilisateur connecté en mémoire de session pour vos filtres SQL
+    # Récupérer l'email de l'utilisateur connecté depuis le dictionnaire chargé
     user_email_session = credentials['usernames'][username]['email']
-    strl.session_state['user_email'] = user_email_session
+    st.session_state['user_email'] = user_email_session
+
+    # =========================================================================
+    # TOUT LE RESTE DE VOTRE CODE (DESIGN, ONGLETS DE TRAVAIL, INJECTION) RESTE ICI
+    # (Veillez à ce que tout soit indenté d'un bloc de 4 espaces !)
+    # =========================================================================
 
     # =========================================================================
     # TOUT LE RESTE DE VOTRE CODE (DESIGN, ONGLETS, INJECTION) RESTE ICI
