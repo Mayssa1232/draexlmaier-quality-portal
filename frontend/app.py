@@ -7,7 +7,7 @@ import streamlit_authenticator as stauth
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-strl = st  # Pour la compatibilité avec votre reste de code utilisant 'strl'
+st = strl  # Pour la compatibilité avec votre reste de code utilisant 'strl'
 
 # 1. Configurer la page (TOUJOURS EN PREMIER)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
