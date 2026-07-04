@@ -78,7 +78,7 @@ if not st.session_state.get("authentication_status"):
                     st.error("Veuillez entrer une adresse e-mail valide.")
                 else:
                     # Hachage sécurisé du mot de passe via streamlit_authenticator
-                    hashed_password = stauth.Hasher([new_password]).generate()[0]
+                    hashed_password = stauth.Hasher.hash(new_password)
                     
                     try:
                         conn = get_db_connection()
