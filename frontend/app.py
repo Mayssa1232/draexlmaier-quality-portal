@@ -10,10 +10,10 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 strl.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# --- CSS & DESIGN (RETOUR AUX COULEURS D'ORIGINE AVEC FIX UPLOAD) ---
+# --- CSS & DESIGN (CORRECTION FINALE DES BOUTONS AU REPOS) ---
 design_css = """
 <style>
-    /* 1. RESTAURATION DE VOTRE ARRIÈRE-PLAN D'ORIGINE */
+    /* 1. ARRIÈRE-PLAN GLOBAL */
     html, body, .stApp { 
         background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%), 
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important; 
@@ -21,27 +21,45 @@ design_css = """
         color: #ffffff; 
     }
     
-    /* 2. RESTAURATION DE VOTRE BARRE LATÉRALE ET BOUTON SOMBRE */
+    /* 2. BARRE LATÉRALE */
     .stSidebar { background: rgba(13, 14, 18, 0.8) !important; border-right: 1px solid #334155; }
-    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
 
-    /* 3. CORRECTION UNIQUEMENT DE LA ZONE D'UPLOAD BLANCHE */
-    /* Modifie le fond du rectangle blanc pour l'accorder à votre thème sombre */
-    [data-testid="stFileUploaderDropzone"] {
-        background-color: rgba(30, 41, 59, 0.5) !important; /* Noir/gris très foncé translucide */
-        border: 2px dashed #475569 !important; /* Bordure grise discrète */
-        border-radius: 8px !important;
+    /* 3. FIX BOUTON INJECT (AU REPOS, SURVOL ET CLIC) */
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 6px; 
+        font-weight: 600; 
+        background-color: rgba(30, 41, 59, 0.8) !important; /* Sombre au repos */
+        color: #ffffff !important;
+        border: 1px solid #475569 !important;
+    }
+    .stButton>button:hover, .stButton>button:active { 
+        background-color: rgba(47, 55, 105, 0.9) !important; /* Lièrement bleuté/clair au survol/clic */
+        border-color: #3b82f6 !important;
     }
 
-    /* Force le texte de description "Upload Compliance PDF" à rester blanc */
+    /* 4. FIX ZONE UPLOAD ET SON BOUTON INTERNE */
     .stFileUploader label p {
         color: #ffffff !important;
     }
-
-    /* Ajuste les textes intérieurs (Drag and drop file here) en gris clair */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: rgba(30, 41, 59, 0.5) !important; /* Fond de la zone sombre */
+        border: 2px dashed #475569 !important;
+        border-radius: 8px !important;
+    }
     [data-testid="stFileUploaderDropzone"] span, 
     [data-testid="stFileUploaderDropzone"] small {
         color: #cbd5e1 !important;
+    }
+    
+    /* Cibler le bouton blanc "Browse files" à l'intérieur pour le rendre sombre d'office */
+    [data-testid="stFileUploaderDropzone"] button {
+        background-color: rgba(15, 23, 42, 0.9) !important; /* Sombre d'office */
+        color: #ffffff !important;
+        border: 1px solid #475569 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button:hover {
+        background-color: rgba(30, 41, 59, 1) !important;
     }
 </style>
 """
