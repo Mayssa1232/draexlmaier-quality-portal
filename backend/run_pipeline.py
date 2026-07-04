@@ -4,9 +4,7 @@ import psycopg2
 import requests
 import re
 import time 
-
 import streamlit as st
-import psycopg2
 
 def get_db_connection():
     # Cette syntaxe va chercher les identifiants Neon automatiquement (en local et sur le cloud)
@@ -17,9 +15,12 @@ def get_db_connection():
         password=st.secrets["DB_PASS"],
         port=st.secrets["DB_PORT"]
     )
+
 def call_groq_cloud(prompt):
-    """Envoie une requête HTTP synchrone à l'API Groq Cloud."""
-    GROQ_API_KEY = "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" 
+    """Envoie une requête HTTP synchrone à l'API Groq Cloud en utilisant les secrets."""
+    # SÉCURITÉ : Récupération de la clé API via st.secrets au lieu de l'écrire en clair
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     payload = {
@@ -42,21 +43,9 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
-import re
-
 def parse_defects_with_python(page_text):
-    """
-    Analyse le texte d'une page pour extraire les codes défauts exacts,
-    gérant les variations de format (ex: 1.1A, 3.1.1L, 10.2B, etc.).
-    """
+    """Analyse le texte d'une page pour extraire les codes défauts exacts."""
     defects_list = []
-    
-    # Explication de la nouvelle Regex :
-    # \b           : Limite de mot
-    # \d+          : Un ou plusieurs chiffres (ex: 1 ou 3 ou 12)
-    # (?:\.\d+)+   : Un point suivi de chiffres, répétable (ex: .1 ou .1.1)
-    # [A-Z]        : Une lettre majuscule à la fin (ex: A, L, N)
-    # \b           : Limite de mot
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)+[A-Z])\b')
     
     lines = page_text.split('\n')
@@ -66,13 +55,12 @@ def parse_defects_with_python(page_text):
             code = match.group(1)
             points = 0
             
-            # Recherche du score dans les 3 lignes suivantes
             for offset in range(1, 4):
                 if idx + offset < len(lines):
                     next_line = lines[idx + offset].strip()
                     if next_line.isdigit() and next_line in ['10', '50', '75', '100']:
                         points = int(next_line)
-                        break  # Score trouvé, on arrête la recherche pour ce code
+                        break
                         
             defects_list.append({"code": code, "points": points})
             
@@ -110,7 +98,6 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     CRITICAL INSTRUCTIONS FOR DYNAMIC PLANT & QK EXTRACTION:
     1. PLANT NAME LOCATION: Look at the main results table section (usually under 'Fertigungsstätten' or listing numbered sites like '1. A- ...' or '1. ...'). Extract the exact full plant name found there (e.g., 'SDPC Pitesti (Rumänien)' or 'DET Jemmal'). DO NOT hallucinate or default to any plant name not explicitly written in the text.
     2. QK METRICS LOCATION: Immediately next to, below, or aligned with that extracted plant name, there is a sequence of numbers representing the Quality Classes (QK values for current month and previous month) along with audit counts.
-       - Carefully map the values for the CURRENT month ('Aktueller Monat' / 'aktuell') to: 'QK_min', 'QK_avg' (or 'QK Ø'), and 'QK_max'.
     3. DATE CONVERSION: Convert the German month name found under or near 'Monat / Jahr' (e.g., 'Juni 2026' or 'Mai 2026') to its exact two-digit numeric equivalent (e.g., 'Juni' -> '06', 'Mai' -> '05').
 
     Return a comprehensive valid JSON object matching this structure exactly:
@@ -255,16 +242,12 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 raw_page_data = call_groq_cloud(prompt_single_page)
                 harness_obj = json.loads(clean_json_response(raw_page_data))
                 
-                # -------------------------------------------------------------
-                # RECTIFICATION ET MAPPING DE SÉCURITÉ DEPUIS L'INDEX MAÎTRE
-                # -------------------------------------------------------------
                 drawing_no = str(harness_obj.get("drawing_number", "")).strip()
                 
                 if drawing_no in harness_registry:
                     harness_obj["audit_type"] = harness_registry[drawing_no]["audit_type"]
                     harness_obj["QK_score"] = harness_registry[drawing_no]["QK_score"]
                 else:
-                    # Garde-fou anti-overflow (si l'IA a confondu le score avec des points comme 300)
                     try:
                         val_qk = float(harness_obj.get("QK_score", 0.0))
                         if val_qk > 10.0:
@@ -304,5 +287,9 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             summary_data["QK_avg"] = round(sum(scores) / len(scores), 2)
             summary_data["QK_max"] = round(max(scores), 2)
             summary_data["audits_count"] = len(all_harnesses)
+
+    # Sécurité d'authentification : initialisation par défaut pour éviter les KeyErrors
+    if "user_email" not in summary_data:
+        summary_data["user_email"] = None
 
     return summary_data, all_harnesses
