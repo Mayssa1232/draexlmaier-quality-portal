@@ -42,18 +42,18 @@ authenticator = stauth.Authenticate(
 authenticator.login()
 
 # Vérification du statut via st.session_state (géré automatiquement par le module)
-if st.session_state.get("authentication_status") == False:
+if strl.session_state.get("authentication_status") == False:
     strl.error("Identifiant ou mot de passe incorrect.")
 
-elif st.session_state.get("authentication_status") == None:
+elif strl.session_state.get("authentication_status") == None:
     strl.warning("Veuillez entrer votre identifiant et votre mot de passe pour accéder au portail.")
 
-elif st.session_state.get("authentication_status"):
+elif strl.session_state.get("authentication_status"):
     # L'UTILISATEUR EST CONNECTÉ AVEC SUCCÈS
     
     # Récupérer les informations de l'utilisateur connecté depuis la session
-    name = st.session_state["name"]
-    username = st.session_state["username"]
+    name = strl.session_state["name"]
+    username = strl.session_state["username"]
     
     # Bouton de déconnexion dans la barre latérale
     authenticator.logout('Déconnexion', 'sidebar')
