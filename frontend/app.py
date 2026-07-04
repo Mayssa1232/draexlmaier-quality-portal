@@ -38,7 +38,8 @@ authenticator = stauth.Authenticate(
 )
 
 # 3. Affichage du formulaire de connexion
-name, authentication_status, username = authenticator.login('Connexion au Portail Qualité', location='main')
+# Dans les versions récentes, on appelle simplement login() sans arguments pour le centre
+name, authentication_status, username = authenticator.login()
 
 # --- GESTION DES ÉTATS D'AUTHENTIFICATION ---
 
