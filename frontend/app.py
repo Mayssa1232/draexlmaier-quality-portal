@@ -311,6 +311,23 @@ if st.session_state.get("authentication_status"):
         finally:
             cur.close()
             conn.close()
+            # --- WIPE DATABASE FUNCTION (PRESERVING USERS) ---
+    def clear_production_database():
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            # Cascading truncate or delete on audit and summary tables
+            cur.execute("TRUNCATE TABLE public.audit_defects_raw RESTART IDENTITY CASCADE;")
+            cur.execute("TRUNCATE TABLE public.pdf_total_occurrences RESTART IDENTITY CASCADE;")
+            cur.execute("TRUNCATE TABLE public.harness_audits RESTART IDENTITY CASCADE;")
+            cur.execute("TRUNCATE TABLE public.monthly_summaries RESTART IDENTITY CASCADE;")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cur.close()
+            conn.close()
 
     # --- SIDEBAR COMPONENTS ---
     with strl.sidebar:
@@ -318,7 +335,27 @@ if st.session_state.get("authentication_status"):
             strl.image("logo.png", use_column_width=True)
         strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
-
+# --- SIDEBAR COMPONENTS ---
+    with strl.sidebar:
+        if os.path.exists("logo.png"): 
+        strl.image("logo.png", use_column_width=True)
+        strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
+        strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
+        
+        strl.markdown("---")
+        strl.markdown("<h4 style='color: #ff4b4b;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
+        
+        # Confirmation Checkbox to avoid accidental clicks
+        confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
+        
+        if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
+            try:
+                clear_production_database()
+                strl.success(" Database successfully cleared!")
+                # Immediate rerun to refresh tables and dashboard live
+                strl.rerun()
+            except Exception as e:
+                strl.error(f"Failed to clear database: {str(e)}")
     # --- WORKSPACE TABS ---
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
@@ -327,7 +364,7 @@ if st.session_state.get("authentication_status"):
         strl.header("Data Intake Portal")
         uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
         
-        if uploaded_file and strl.button("🚀 Inject into Production Database"):
+        if uploaded_file and strl.button(" Inject into  Database"):
             try:
                 summary, details = extract_dynamic_pdf_data(uploaded_file.read())
                 
