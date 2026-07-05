@@ -329,12 +329,6 @@ if st.session_state.get("authentication_status"):
             cur.close()
             conn.close()
 
-    # --- SIDEBAR COMPONENTS ---
-    with strl.sidebar:
-        if os.path.exists("logo.png"): 
-            strl.image("logo.png", use_column_width=True)
-        strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
-        strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
 # --- SIDEBAR COMPONENTS ---
     with strl.sidebar:
         if os.path.exists("logo.png"): 
