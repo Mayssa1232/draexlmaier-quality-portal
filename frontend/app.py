@@ -19,15 +19,19 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 # This styling applies to the login/registration interface at startup
+# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
+# This styling applies to the login/registration interface at startup with the car background
 initial_design_css = """
 <style>
-    /* Main Background & Text Color */
-    .stApp {
-        background-color: #0e1117;
+    /* Main Background with Car Image & Text Color */
+    html, body, .stApp {
+        background: linear-gradient(135deg, rgba(13, 14, 18, 0.88) 0%, rgba(22, 25, 32, 0.94) 100%),
+                    url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
+        background-size: cover !important;
         color: #ffffff;
     }
     
-    /* Style for Tabs (Login / Register) */
+    /* Style for Tabs (Login / Register) - GREEN line for Authentication */
     .stTabs button {
         color: #a3a8b4 !important;
         font-weight: 600 !important;
@@ -36,15 +40,16 @@ initial_design_css = """
     }
     .stTabs button[aria-selected="true"] {
         color: #00ffd0 !important;
-        border-bottom: 2px solid #00ffd0 !important;
+        border-bottom: 2px solid #00ffd0 !important; /* Green line */
     }
     
     /* Style for Forms & Cards */
     div[data-testid="stForm"] {
-        background-color: #161b22;
+        background-color: rgba(22, 27, 34, 0.85);
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 25px;
+        backdrop-filter: blur(10px);
     }
     
     /* Inputs Styling */
@@ -183,6 +188,7 @@ if st.session_state.get("authentication_status"):
     st.session_state['user_email'] = user_email_session
 
     # --- ADVANCED PRODUCTION GRAPHICS & BACKGROUND DESIGN ---
+    # --- ADVANCED PRODUCTION GRAPHICS & BACKGROUND DESIGN ---
     production_design_css = """
     <style>
         html, body, .stApp {
@@ -197,6 +203,18 @@ if st.session_state.get("authentication_status"):
             border-right: 1px solid #334155; 
         }
 
+        /* Style for Workspace Tabs - RED line inside the platform */
+        .stTabs button {
+            color: #a3a8b4 !important;
+            font-weight: 600 !important;
+            background-color: transparent !important;
+            border: none !important;
+        }
+        .stTabs button[aria-selected="true"] {
+            color: #ff4b4b !important;
+            border-bottom: 2px solid #ff4b4b !important; /* Red line replacing the green one */
+        }
+
         /* Custom Action Buttons */
         .stButton>button {
             width: 100%;
@@ -208,7 +226,7 @@ if st.session_state.get("authentication_status"):
         }
         .stButton>button:hover, .stButton>button:active {
             background-color: rgba(47, 55, 105, 0.9) !important;
-            border-color: #3b82f6 !important;
+            border-color: #ff4b4b !important; /* Red highlight on hover inside */
         }
 
         /* File Uploader Custom Dark styling */
