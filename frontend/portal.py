@@ -252,13 +252,20 @@ if not st.session_state.get("authentication_status"):
                             if cur.fetchone():
                                 st.error("This username or email is already taken.")
                             else:
+                                # 1. Insertion de l'utilisateur dans Neon
                                 cur.execute(
                                     "INSERT INTO users (username, name, password_hash, email) VALUES (%s, %s, %s, %s)",
                                     (new_username, new_name, hashed_password, new_email)
                                 )
                                 conn.commit()
+                                
+                                # 🚨 RECHARGE DYNAMIQUE : On force l'application à lire le nouvel utilisateur immédiatement
+                                updated_credentials = load_users_from_db()
+                                authenticator.credentials = updated_credentials
+                                
                                 st.success("Account created successfully! You can now log in.")
                                 st.rerun()
+                            
                             cur.close()
                             conn.close()
                         except Exception as e:
