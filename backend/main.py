@@ -17,6 +17,9 @@ strl = st
 # 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
+# 🚨 FIX CRUCIAL : Initialisation défensive globale pour éradiquer le NameError
+tab1, tab2, tab3 = None, None, None
+
 # --- PATH & IMPORT ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
@@ -330,6 +333,8 @@ else:
     # --- WORKSPACE TABS ---
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
+# --- CONDITIONAL RENDERING TO AVOID NAMEERROR ---
+if tab1 is not None:
     # --- DATA INTAKE ---
     with tab1:
         strl.header("Data Intake Portal")
