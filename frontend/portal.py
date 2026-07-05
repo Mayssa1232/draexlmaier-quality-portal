@@ -330,9 +330,9 @@ else:
     # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
     with strl.sidebar:
         # 1. Nom de l'entreprise (et logo si existant)
-        if os.path.exists("logo.png"): 
-            strl.image("logo.png", use_column_width=True)
-        strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
+        if os.path.exists("image_609dcc.png"): 
+            strl.image("image_609dcc.png", use_column_width=True)
+        strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
@@ -357,7 +357,7 @@ else:
         
         # 4. Bouton de déconnexion placé tout en bas
         # Utilisation de petits espacements vides pour repousser proprement le bouton
-        for _ in range(8):
+        for _ in range(2):
             strl.write("")
             
         strl.markdown("---")
