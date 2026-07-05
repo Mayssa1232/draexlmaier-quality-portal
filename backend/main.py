@@ -355,53 +355,45 @@ if st.session_state.get("authentication_status"):
     # --- DATA INTAKE ---
     with tab1:
         strl.header("Data Intake Portal")
-    
-    # 1. Affichage persistant du succès s'il existe dans le session_state
-    if "injection_success" in st.session_state:
-        strl.success(st.session_state["injection_success"])
-        # Petit bouton optionnel pour nettoyer la notification manuellement
-        if strl.button("Clear Notification"):
-            del st.session_state["injection_success"]
-            strl.rerun()
+        
+        # 1. Affichage persistant du succès s'il existe dans le session_state
+        if "injection_success" in st.session_state:
+            strl.success(st.session_state["injection_success"])
+            if strl.button("Clear Notification"):
+                del st.session_state["injection_success"]
+                strl.rerun()
 
-    uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-    
-    if uploaded_file and strl.button(" Inject into Database"):
-        try:
-            # Message temporaire visible pendant le traitement
-            status_text = strl.info("⏳ Processing PDF and preparing database injection...")
-            
-            summary, details = extract_dynamic_pdf_data(uploaded_file.read())
-            
-            defects = []
-            occurrences = []
-            for h in details:
-                for d in h.get("raw_defects_list", []):
-                    defects.append({
-                        "drawing_number": h["drawing_number"],
-                        "defect_code": d["code"],
-                        "penalty_points": d["points"]
-                    })
-                    occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-                    if occ_found: 
-                        occ_found["total_count"] += 1
-                    else: 
-                        occurrences.append({"defect_code": d["code"], "total_count": 1})
+        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+        
+        if uploaded_file and strl.button("🚀 Inject into Database"):
+            try:
+                status_text = strl.info("⏳ Processing PDF and preparing database injection...")
+                summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                
+                defects = []
+                occurrences = []
+                for h in details:
+                    for d in h.get("raw_defects_list", []):
+                        defects.append({
+                            "drawing_number": h["drawing_number"],
+                            "defect_code": d["code"],
+                            "penalty_points": d["points"]
+                        })
+                        occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
+                        if occ_found: 
+                            occ_found["total_count"] += 1
+                        else: 
+                            occurrences.append({"defect_code": d["code"], "total_count": 1})
 
-            save_to_database(summary, details, defects, occurrences)
-            
-            # Nettoyer le message temporaire
-            status_text.empty()
-            
-            # 2. On sauvegarde le message dans le session_state
-            st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
-            
-            # 3. On force un rechargement propre pour figer le message à l'écran
-            strl.rerun()
-            
-        except Exception as e:
-            strl.error(f"Injection Failed: {str(e)}")
-            strl.exception(e)
+                save_to_database(summary, details, defects, occurrences)
+                status_text.empty()
+                
+                st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
+                strl.rerun()
+                
+            except Exception as e:
+                strl.error(f"Injection Failed: {str(e)}")
+                strl.exception(e)
 
     # --- ANALYTICS REGISTER ---
     with tab2:
