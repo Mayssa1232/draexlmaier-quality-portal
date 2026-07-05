@@ -59,7 +59,7 @@ initial_design_css = """
     
     /* Style for Forms & Cards */
     div[data-testid="stForm"] {
-        background-color: rgba(22, 27, 34, 0.85);
+        background-color: rgba(0, 0,0 , 0.85);
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 25px;
