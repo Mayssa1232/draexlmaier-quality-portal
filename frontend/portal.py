@@ -59,7 +59,7 @@ initial_design_css = """
     
     /* Style for Forms & Cards */
     div[data-testid="stForm"] {
-        background-color: rgba(0, 0,0 , 0.85);
+        background-color: rgba(0, 0, 0, 0.85);
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 25px;
@@ -91,6 +91,32 @@ initial_design_css = """
         background-color: #00ffd0 !important;
         color: #0e1117 !important;
         border-color: #00ffd0 !important;
+    }
+
+    /* 🎨 NOUVEAU : Modification de la couleur de fond de la section UPLOAD */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: rgba(133, 153, 193, 0.3) !important; /* Votre couleur rgb(133 153 193 / 30%) */
+        border: 2px dashed #00ffd0 !important;                /* Bordure pointillée turquoise */
+        border-radius: 8px !important;
+        transition: background-color 0.2s ease-in-out !important;
+    }
+
+    /* Effet de survol optionnel sur la zone d'upload pour garder une interface dynamique */
+    [data-testid="stFileUploaderDropzone"]:hover {
+        background-color: rgba(133, 153, 193, 0.45) !important; /* Légèrement plus opaque au survol */
+        border-color: #ff4b4b !important;                       /* Bordure passe au rouge DRÄXLMAIER */
+    }
+
+    /* Ajustement des textes et boutons internes de la zone d'upload */
+    [data-testid="stFileUploaderDropzone"] span, 
+    [data-testid="stFileUploaderDropzone"] small {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stFileUploaderDropzone"] button {
+        background-color: #21262d !important;
+        color: #ffffff !important;
+        border: 1px solid #30363d !important;
     }
 </style>
 """
