@@ -24,9 +24,11 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 # This styling applies to the login/registration interface at startup with the car background
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
+# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
+# This styling applies to the login/registration interface at startup with the car background
 initial_design_css = """
 <style>
-    /* Main Background with Car Image */
+    /* Main Background with Car Image & Text Color */
     html, body, .stApp {
         background: linear-gradient(135deg, rgba(13, 14, 18, 0.88) 0%, rgba(22, 25, 32, 0.94) 100%),
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
@@ -34,42 +36,30 @@ initial_design_css = """
         color: #ffffff;
     }
     
-    /* ─── NETTOYAGE ABSOLU DE LA DOUBLE LIGNE DES ONGLETS ─── */
+    /* ─── NETTOYAGE COMPATIBLE DE LA DOUBLE LIGNE ─── */
     
-    /* 1. Supprime la ligne rouge globale sous TOUS les onglets */
-    .stTabs [data-baseweb="tab-list"], 
-    .stTabs [data-baseweb="tab-list"]::after {
-        border-bottom: none !important;
-        background-color: transparent !important;
-        height: 0px !important;
-    }
-    
-    /* 2. Supprime la barre d'accentuation dynamique native de Streamlit (la ligne rouge mouvante) */
-    .stTabs [data-baseweb="tab-highlight"] {
+    /* Cible l'indicateur rouge mobile par défaut de Streamlit pour le masquer complètement */
+    [data-testid="stBaseButton-inline"], 
+    [data-baseweb="tab-highlight"] {
         background-color: transparent !important;
         display: none !important;
-        height: 0px !important;
     }
-    
-    /* 3. Style de base des boutons d'onglets au repos */
-    .stTabs button {
+
+    /* Style des onglets d'authentification */
+    .stTabs [data-baseweb="tab"] {
         color: #a3a8b4 !important;
         font-weight: 600 !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
         border-bottom: 3px solid transparent !important; /* Réserve l'espace au repos */
+        padding: 10px 20px !important;
     }
     
-    /* 4. LIGNE VERTE UNIQUE sur l'onglet sélectionné */
-    .stTabs button[aria-selected="true"] {
+    /* LIGNE VERTE UNIQUE ET RETOUR DU TEXTE sur l'onglet sélectionné */
+    .stTabs [aria-selected="true"] {
         color: #00ffd0 !important;
-        border-bottom: 3px solid #00ffd0 !important; /* Ligne verte unique et nette */
-        box-shadow: none !important;
-        background-color: transparent !important;
+        border-bottom: 3px solid #00ffd0 !important; /* Notre ligne verte unique */
     }
     
-    /* Cards, Inputs & Buttons */
+    /* Style for Forms & Cards */
     div[data-testid="stForm"] {
         background-color: rgba(22, 27, 34, 0.85);
         border: 1px solid #30363d;
@@ -77,6 +67,8 @@ initial_design_css = """
         padding: 25px;
         backdrop-filter: blur(10px);
     }
+    
+    /* Inputs Styling */
     .stTextInput input {
         background-color: #0d1117 !important;
         color: #ffffff !important;
@@ -86,16 +78,18 @@ initial_design_css = """
         border-color: #00ffd0 !important;
         box-shadow: 0 0 0 1px #00ffd0 !important;
     }
-    .stButton button {
-        width: 100%;
-        border-radius: 6px;
-        font-weight: 600;
+    
+    /* Form Submit Buttons Styling */
+    div[data-testid="stForm"] button {
+        width: 100% !important;
+        border-radius: 6px !important;
+        font-weight: 600 !important;
         background-color: #21262d !important;
         color: #c9d1d9 !important;
         border: 1px solid #30363d !important;
-        transition: 0.2s ease;
+        transition: 0.2s ease !important;
     }
-    .stButton button:hover {
+    div[data-testid="stForm"] button:hover {
         background-color: #00ffd0 !important;
         color: #0e1117 !important;
         border-color: #00ffd0 !important;
@@ -103,7 +97,6 @@ initial_design_css = """
 </style>
 """
 st.markdown(initial_design_css, unsafe_allow_html=True)
-
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
 def load_users_from_db():
