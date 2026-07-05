@@ -102,15 +102,15 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
 
     Return a comprehensive valid JSON object matching this structure exactly:
     {{
-       "supplier": "Exact company/firm name string found (e.g., 'Dräxlmaier Group')",
-       "plant": "Exact plant site name string extracted dynamically from the table line (e.g., 'SDPC Pitesti (Rumänien)')",
-       "country": "Extract the country name if present in the plant string or location section (e.g., 'Rumänien')",
-       "report_month": "Two-digit month numeric string, e.g. '06'",
-       "report_year": "Four-digit year numeric string, e.g. '2026'",
-       "QK_min": 0.0,
-       "QK_avg": 0.0,
-       "QK_max": 0.0,
-       "audits_count": 0
+        "supplier": "Exact company/firm name string found (e.g., 'Dräxlmaier Group')",
+        "plant": "Exact plant site name string extracted dynamically from the table line (e.g., 'SDPC Pitesti (Rumänien)')",
+        "country": "Extract the country name if present in the plant string or location section (e.g., 'Rumänien')",
+        "report_month": "Two-digit month numeric string, e.g. '06'",
+        "report_year": "Four-digit year numeric string, e.g. '2026'",
+        "QK_min": 0.0,
+        "QK_avg": 0.0,
+        "QK_max": 0.0,
+        "audits_count": 0
     }}
 
     Document Text to analyze (Page 1):
@@ -143,7 +143,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     
     prompt_master_table = f"""
     You are a precise data extraction specialist. Analyze this summary table from Page 2 of a Volkswagen/Dräxlmaier audit report.
-    Extract EVERY harness row listed in the main table. 
+    Extract EVERY harness row listed in the main table.
 
     Look closely at the last two columns of the summary table section to capture the correct Audit-Art ("Z" or "P").
     - These two columns correspond to the audit classifications: "Produktaudit zerstörend" (Destructive / Z) and "Produktaudit partiell" (Partial / P).
@@ -201,9 +201,9 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             continue
 
         is_valid_audit_page = (
-            "fahrzeug" in page_content_lower or 
-            "sachnummer" in page_content_lower or 
-            "sach-nr" in page_content_lower or 
+            "fahrzeug" in page_content_lower or
+            "sachnummer" in page_content_lower or
+            "sach-nr" in page_content_lower or
             "auditor" in page_content_lower
         )
         
