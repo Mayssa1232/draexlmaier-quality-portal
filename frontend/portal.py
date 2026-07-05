@@ -331,7 +331,7 @@ else:
         strl.markdown("---")
         
         # 2. Message de bienvenue avec le nom d'utilisateur
-        strl.markdown(f"<h3 style='text-align: center; color: #00ffd0;'>Welcome, {name}</h3>", unsafe_allow_html=True)
+        strl.markdown(f"<h3 style='text-align: center; color: #448ACF;'>Welcome, {name}</h3>", unsafe_allow_html=True)
         strl.markdown(f"<p style='text-align: center; color: #a3a8b4;'>@{username}</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
@@ -340,10 +340,10 @@ else:
         strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
-        if strl.button("🚨 Wipe Database Data", disabled=not confirm_wipe):
+        if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
             try:
                 clear_production_database()
-                strl.success("💥 Database successfully cleared!")
+                strl.success(" Database successfully cleared!")
                 strl.rerun()
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
@@ -374,9 +374,9 @@ try:
 
             uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
             
-            if uploaded_file and strl.button("🚀 Inject into Database"):
+            if uploaded_file and strl.button(" Inject into Database"):
                 try:
-                    status_text = strl.info("⏳ Processing PDF and preparing database injection...")
+                    status_text = strl.info(" Processing PDF and preparing database injection...")
                     summary, details = extract_dynamic_pdf_data(uploaded_file.read())
                     
                     defects = []
@@ -397,7 +397,7 @@ try:
                     save_to_database(summary, details, defects, occurrences)
                     status_text.empty()
                     
-                    st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
+                    st.session_state["injection_success"] = " Data successfully injected into all tables!"
                     strl.rerun()
                     
                 except Exception as e:
@@ -462,7 +462,7 @@ try:
                 if not df_dash.empty:
                     fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
                     fig.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)', 
+                        paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
                         font_color="#ffffff",
                         title_font_color="#ffffff"
