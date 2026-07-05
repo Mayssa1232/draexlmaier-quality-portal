@@ -332,7 +332,7 @@ if st.session_state.get("authentication_status"):
 # --- SIDEBAR COMPONENTS ---
     with strl.sidebar:
         if os.path.exists("logo.png"): 
-        strl.image("logo.png", use_column_width=True)
+            strl.image("logo.png", use_column_width=True)
         strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
@@ -342,11 +342,10 @@ if st.session_state.get("authentication_status"):
         # Confirmation Checkbox to avoid accidental clicks
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
-        if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
+        if strl.button("🚨 Wipe Database Data", disabled=not confirm_wipe):
             try:
                 clear_production_database()
-                strl.success(" Database successfully cleared!")
-                # Immediate rerun to refresh tables and dashboard live
+                strl.success("💥 Database successfully cleared!")
                 strl.rerun()
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
