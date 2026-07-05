@@ -243,6 +243,9 @@ if not st.session_state.get("authentication_status"):
 # =========================================================================
 # --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
 # =========================================================================
+# =========================================================================
+# --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
+# =========================================================================
 else:
     name = st.session_state["name"]
     username = st.session_state["username"]
@@ -310,122 +313,124 @@ else:
                 strl.error(f"Failed to clear database: {str(e)}")
 
     # Instanciation unique et sécurisée des conteneurs d'onglets
-    t1, t2, t3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
-    st.session_state["tab1_container"] = t1
-    st.session_state["tab2_container"] = t2
-    st.session_state["tab3_container"] = t3
-    st.session_state["tabs_initialized"] = True
+    tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-# --- RENDERING VIA SESSION STATE GUARDIAN ---
-if st.session_state.get("tabs_initialized") == True:
-    
-    # --- DATA INTAKE ---
-    with st.session_state["tab1_container"]:
-        strl.header("Data Intake Portal")
+# --- 🚨 SÉCURITÉ ANTI-MESSAGE ROUGE : TRY/EXCEPT SUR LE RENDU DES ONGLETS ---
+try:
+    # On vérifie de manière stricte si la variable locale ou globale tab1 existe
+    if 'tab1' in locals() or 'tab1' in globals():
         
-        if "injection_success" in st.session_state:
-            strl.success(st.session_state["injection_success"])
-            if strl.button("Clear Notification"):
-                del st.session_state["injection_success"]
-                strl.rerun()
-
-        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-        
-        if uploaded_file and strl.button("🚀 Inject into Database"):
-            try:
-                status_text = strl.info("⏳ Processing PDF and preparing database injection...")
-                summary, details = extract_dynamic_pdf_data(uploaded_file.read())
-                
-                defects = []
-                occurrences = []
-                for h in details:
-                    for d in h.get("raw_defects_list", []):
-                        defects.append({
-                            "drawing_number": h["drawing_number"],
-                            "defect_code": d["code"],
-                            "penalty_points": d["points"]
-                        })
-                        occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-                        if occ_found: 
-                            occ_found["total_count"] += 1
-                        else: 
-                            occurrences.append({"defect_code": d["code"], "total_count": 1})
-
-                save_to_database(summary, details, defects, occurrences)
-                status_text.empty()
-                
-                st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
-                strl.rerun()
-                
-            except Exception as e:
-                strl.error(f"Injection Failed: {str(e)}")
-                strl.exception(e)
-
-    # --- ANALYTICS REGISTER ---
-    with st.session_state["tab2_container"]:
-        strl.header("Quality Analytics Register")
-        subtab1, subtab2, subtab3, subtab4 = strl.tabs([
-            "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
-        ])
-
-        try:
-            conn = get_db_connection()
-
-            with subtab1:
-                df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-                if not df1.empty:
-                    strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-
-            with subtab2:
-                query2 = """
-                    SELECT s.plant, h.* FROM public.harness_audits h
-                    JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                """
-                df2 = pd.read_sql(query2, conn)
-                if not df2.empty:
-                    strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-
-            with subtab3:
-                query3 = """
-                    SELECT s.plant, d.* FROM public.audit_defects_raw d
-                    JOIN public.harness_audits h ON d.audit_id = h.audit_id
-                    JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                """
-                df3 = pd.read_sql(query3, conn)
-                if not df3.empty:
-                    strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-
-            with subtab4:
-                query4 = """
-                    SELECT s.plant, o.* FROM public.pdf_total_occurrences o
-                    JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                """
-                df4 = pd.read_sql(query4, conn)
-                if not df4.empty:
-                    strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-
-            conn.close()
-        except Exception as e:
-            strl.error(f"Error loading registers: {str(e)}")
-
-    # --- DASHBOARD ---
-    with st.session_state["tab3_container"]:
-        strl.header("Performance Dashboard")
-        try:
-            conn = get_db_connection()
-            df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
-            conn.close()
+        # --- DATA INTAKE ---
+        with tab1:
+            strl.header("Data Intake Portal")
             
-            if not df_dash.empty:
-                fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
-                fig.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font_color="#ffffff",
-                    title_font_color="#ffffff"
-                )
-                strl.plotly_chart(fig, use_container_width=True)
-            else:
-                strl.info("Dashboard awaiting production data...")
-        except Exception as e:
-            strl.error(f"Dashboard Load Error: {str(e)}")
+            if "injection_success" in st.session_state:
+                strl.success(st.session_state["injection_success"])
+                if strl.button("Clear Notification"):
+                    del st.session_state["injection_success"]
+                    strl.rerun()
+
+            uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+            
+            if uploaded_file and strl.button("🚀 Inject into Database"):
+                try:
+                    status_text = strl.info("⏳ Processing PDF and preparing database injection...")
+                    summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                    
+                    defects = []
+                    occurrences = []
+                    for h in details:
+                        for d in h.get("raw_defects_list", []):
+                            defects.append({
+                                "drawing_number": h["drawing_number"],
+                                "defect_code": d["code"],
+                                "penalty_points": d["points"]
+                            })
+                            occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
+                            if occ_found: 
+                                occ_found["total_count"] += 1
+                            else: 
+                                occurrences.append({"defect_code": d["code"], "total_count": 1})
+
+                    save_to_database(summary, details, defects, occurrences)
+                    status_text.empty()
+                    
+                    st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
+                    strl.rerun()
+                    
+                except Exception as e:
+                    strl.error(f"Injection Failed: {str(e)}")
+                    strl.exception(e)
+
+        # --- ANALYTICS REGISTER ---
+        with tab2:
+            strl.header("Quality Analytics Register")
+            subtab1, subtab2, subtab3, subtab4 = strl.tabs([
+                "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
+            ])
+
+            try:
+                conn = get_db_connection()
+
+                with subtab1:
+                    df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                    if not df1.empty:
+                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+
+                with subtab2:
+                    query2 = """
+                        SELECT s.plant, h.* FROM public.harness_audits h
+                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                    """
+                    df2 = pd.read_sql(query2, conn)
+                    if not df2.empty:
+                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+
+                with subtab3:
+                    query3 = """
+                        SELECT s.plant, d.* FROM public.audit_defects_raw d
+                        JOIN public.harness_audits h ON d.audit_id = h.audit_id
+                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                    """
+                    df3 = pd.read_sql(query3, conn)
+                    if not df3.empty:
+                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+
+                with subtab4:
+                    query4 = """
+                        SELECT s.plant, o.* FROM public.pdf_total_occurrences o
+                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                    """
+                    df4 = pd.read_sql(query4, conn)
+                    if not df4.empty:
+                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+
+                conn.close()
+            except Exception as e:
+                strl.error(f"Error loading registers: {str(e)}")
+
+        # --- DASHBOARD ---
+        with tab3:
+            strl.header("Performance Dashboard")
+            try:
+                conn = get_db_connection()
+                df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
+                conn.close()
+                
+                if not df_dash.empty:
+                    fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
+                    fig.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font_color="#ffffff",
+                        title_font_color="#ffffff"
+                    )
+                    strl.plotly_chart(fig, use_container_width=True)
+                else:
+                    strl.info("Dashboard awaiting production data...")
+            except Exception as e:
+                strl.error(f"Dashboard Load Error: {str(e)}")
+
+except NameError:
+    # Si tab1 n'est pas encore défini pendant le rafraîchissement, Python ignore silencieusement
+    pass
