@@ -7,10 +7,10 @@ import streamlit_authenticator as stauth
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Alias for compatibility with your existing code
+# Alias for compatibility with your existing workspace code
 strl = st
 
-# 1. Page Configuration (MUST BE FIRST)
+# 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
 # --- PATH & IMPORT ---
@@ -18,8 +18,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
-# This ensures the login/registration tabs match your platform's theme from the start
-design_css = """
+# This styling applies to the login/registration interface at startup
+initial_design_css = """
 <style>
     /* Main Background & Text Color */
     .stApp {
@@ -60,6 +60,9 @@ design_css = """
     
     /* Buttons Styling */
     .stButton button {
+        width: 100%;
+        border-radius: 6px;
+        font-weight: 600;
         background-color: #21262d !important;
         color: #c9d1d9 !important;
         border: 1px solid #30363d !important;
@@ -72,10 +75,10 @@ design_css = """
     }
 </style>
 """
-st.markdown(design_css, unsafe_allow_html=True)
+st.markdown(initial_design_css, unsafe_allow_html=True)
 
 
-# --- DYNAMIC USER LOAD FROM NEON ---
+# --- DYNAMIC USER LOAD FROM NEON DATABASE ---
 def load_users_from_db():
     credentials = {"usernames": {}}
     try:
@@ -95,20 +98,19 @@ def load_users_from_db():
         st.error(f"Database connection error: {e}")
     return credentials
 
-# Load active accounts
+# Load all valid accounts
 credentials = load_users_from_db()
 
 # --- SECURE JWT INITIALIZATION ---
 authenticator = stauth.Authenticate(
     credentials,
     'quality_portal_cookie',
-    'une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026',
+    'une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026', # Compliant >32 bytes key
     cookie_expiry_days=30
 )
 
-# --- WELCOME INTERFACE (LOGIN / REGISTRATION) ---
+# --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
 if not st.session_state.get("authentication_status"):
-    # Main container layout centered
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
@@ -143,6 +145,7 @@ if not st.session_state.get("authentication_status"):
                     elif "@" not in new_email:
                         st.error("Please enter a valid email address.")
                     else:
+                        # Secure hashing compatible with stauth 0.3+
                         hashed_password = stauth.Hasher.hash(new_password)
                         
                         try:
@@ -164,441 +167,225 @@ if not st.session_state.get("authentication_status"):
                         except Exception as e:
                             st.error(f"Registration failed: {e}")
 
-# --- SECURE AREA (USER LOGGED IN) ---
+# =========================================================================
+# --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
+# =========================================================================
 if st.session_state.get("authentication_status"):
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    # Sidebar log out button
+    # Sidebar logout configuration
     authenticator.logout('Log Out', 'sidebar')
     st.sidebar.title(f"Welcome, {name}")
     
-    # Map user session email for SQL filtering
+    # Session state variable for relational filtering
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
 
-    # --- LE RESTE DE VOTRE CODE INITIAL (ONGLETS, INJECTION, DASHBOARD) RESTE ICI ---
-
-
-
-# --- PATH & IMPORT ---
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
-
-from run_pipeline import extract_dynamic_pdf_data, get_db_connection
-
-
-
-strl.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
-
-
-
-# --- CSS & DESIGN (CORRECTION FINALE DES BOUTONS AU REPOS) ---
-
-design_css = """
-
-<style>
-
-    /* 1. ARRIÈRE-PLAN GLOBAL */
-
-    html, body, .stApp {
-
-        background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%),
-
-                    url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
-
-        background-size: cover !important;
-
-        color: #ffffff;
-
-    }
-
-   
-
-    /* 2. BARRE LATÉRALE */
-
-    .stSidebar { background: rgba(13, 14, 18, 0.8) !important; border-right: 1px solid #334155; }
-
-
-
-    /* 3. FIX BOUTON INJECT (AU REPOS, SURVOL ET CLIC) */
-
-    .stButton>button {
-
-        width: 100%;
-
-        border-radius: 6px;
-
-        font-weight: 600;
-
-        background-color: rgba(30, 41, 59, 0.8) !important; /* Sombre au repos */
-
-        color: #ffffff !important;
-
-        border: 1px solid #475569 !important;
-
-    }
-
-    .stButton>button:hover, .stButton>button:active {
-
-        background-color: rgba(47, 55, 105, 0.9) !important; /* Lièrement bleuté/clair au survol/clic */
-
-        border-color: #3b82f6 !important;
-
-    }
-
-
-
-    /* 4. FIX ZONE UPLOAD ET SON BOUTON INTERNE */
-
-    .stFileUploader label p {
-
-        color: #ffffff !important;
-
-    }
-
-    [data-testid="stFileUploaderDropzone"] {
-
-        background-color: rgba(30, 41, 59, 0.5) !important; /* Fond de la zone sombre */
-
-        border: 2px dashed #475569 !important;
-
-        border-radius: 8px !important;
-
-    }
-
-    [data-testid="stFileUploaderDropzone"] span,
-
-    [data-testid="stFileUploaderDropzone"] small {
-
-        color: #cbd5e1 !important;
-
-    }
-
-   
-
-    /* Cibler le bouton blanc "Browse files" à l'intérieur pour le rendre sombre d'office */
-
-    [data-testid="stFileUploaderDropzone"] button {
-
-        background-color: rgba(15, 23, 42, 0.9) !important; /* Sombre d'office */
-
-        color: #ffffff !important;
-
-        border: 1px solid #475569 !important;
-
-    }
-
-    [data-testid="stFileUploaderDropzone"] button:hover {
-
-        background-color: rgba(30, 41, 59, 1) !important;
-
-    }
-
-</style>
-
-"""
-
-strl.markdown(design_css, unsafe_allow_html=True)
-
-
-
-# --- FONCTION D'INJECTION MULTI-TABLES (5 COUCHES) ---
-
-def save_to_database (summary, details, defects_list, occurrences_list):
-
-    conn = get_db_connection()
-
-    cur = conn.cursor()
-
-    try:
-
-        # 1. Monthly Summaries
-
-        cur.execute("""
-
-            INSERT INTO public.monthly_summaries
-
-            (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
-
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
-
-        """, (summary['supplier'], summary['plant'], summary['country'],
-
-              str(summary['report_month']), str(summary['report_year']),
-
-              summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
-
-        summary_id = cur.fetchone()[0]
-
-
-
-        # 2. Harness Audits
-
-        audit_id_map = {}
-
-        for r in details:
-
+    # --- ADVANCED PRODUCTION GRAPHICS & BACKGROUND DESIGN ---
+    production_design_css = """
+    <style>
+        html, body, .stApp {
+            background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%),
+                        url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
+            background-size: cover !important;
+            color: #ffffff;
+        }
+       
+        .stSidebar { 
+            background: rgba(13, 14, 18, 0.8) !important; 
+            border-right: 1px solid #334155; 
+        }
+
+        /* Custom Action Buttons */
+        .stButton>button {
+            width: 100%;
+            border-radius: 6px;
+            font-weight: 600;
+            background-color: rgba(30, 41, 59, 0.8) !important;
+            color: #ffffff !important;
+            border: 1px solid #475569 !important;
+        }
+        .stButton>button:hover, .stButton>button:active {
+            background-color: rgba(47, 55, 105, 0.9) !important;
+            border-color: #3b82f6 !important;
+        }
+
+        /* File Uploader Custom Dark styling */
+        .stFileUploader label p { color: #ffffff !important; }
+        [data-testid="stFileUploaderDropzone"] {
+            background-color: rgba(30, 41, 59, 0.5) !important;
+            border: 2px dashed #475569 !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stFileUploaderDropzone"] span,
+        [data-testid="stFileUploaderDropzone"] small {
+            color: #cbd5e1 !important;
+        }
+        [data-testid="stFileUploaderDropzone"] button {
+            background-color: rgba(15, 23, 42, 0.9) !important;
+            color: #ffffff !important;
+            border: 1px solid #475569 !important;
+        }
+        [data-testid="stFileUploaderDropzone"] button:hover {
+            background-color: rgba(30, 41, 59, 1) !important;
+        }
+    </style>
+    """
+    strl.markdown(production_design_css, unsafe_allow_html=True)
+
+    # --- MULTI-TABLE INJECTION FUNCTION ---
+    def save_to_database(summary, details, defects_list, occurrences_list):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Monthly Summaries Table
             cur.execute("""
+                INSERT INTO public.monthly_summaries
+                (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
+            """, (summary['supplier'], summary['plant'], summary['country'],
+                  str(summary['report_month']), str(summary['report_year']),
+                  summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
+            summary_id = cur.fetchone()[0]
 
-                INSERT INTO public.harness_audits
+            # 2. Harness Audits Table
+            audit_id_map = {}
+            for r in details:
+                cur.execute("""
+                    INSERT INTO public.harness_audits
+                    (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
+                """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
+                      r['defect_count'], r['defect_points'], r['auditor_name'], r['calculation_factor'],
+                      r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
+                audit_id_map[r['drawing_number']] = cur.fetchone()[0]
 
-                (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
+            # 3. Audit Defects Raw Table
+            for d in defects_list:
+                cur.execute("INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) VALUES (%s, %s, %s);",
+                            (audit_id_map[d['drawing_number']], d['defect_code'], d['penalty_points']))
 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
+            # 4. PDF Total Occurrences Table
+            for o in occurrences_list:
+                cur.execute("INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) VALUES (%s, %s, %s);",
+                            (summary_id, o['defect_code'], o['total_count']))
 
-            """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cur.close()
+            conn.close()
 
-                  r['defect_count'], r['defect_points'], r['auditor_name'], r['calculation_factor'],
+    # --- SIDEBAR COMPONENTS ---
+    with strl.sidebar:
+        if os.path.exists("logo.png"): 
+            strl.image("logo.png", use_column_width=True)
+        strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
+        strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
 
-                  r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
+    # --- WORKSPACE TABS ---
+    tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-            audit_id_map[r['drawing_number']] = cur.fetchone()[0]
+    # --- DATA INTAKE ---
+    with tab1:
+        strl.header("Data Intake Portal")
+        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+        
+        if uploaded_file and strl.button("🚀 Inject into Production Database"):
+            try:
+                summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                
+                defects = []
+                occurrences = []
+                for h in details:
+                    for d in h.get("raw_defects_list", []):
+                        defects.append({
+                            "drawing_number": h["drawing_number"],
+                            "defect_code": d["code"],
+                            "penalty_points": d["points"]
+                        })
+                        occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
+                        if occ_found: 
+                            occ_found["total_count"] += 1
+                        else: 
+                            occurrences.append({"defect_code": d["code"], "total_count": 1})
 
+                strl.write("Injection in progress...")
+                save_to_database(summary, details, defects, occurrences)
+                strl.success("✅ Data successfully injected into all tables!")
+                
+            except Exception as e:
+                strl.error(f"Injection Failed: {str(e)}")
+                strl.exception(e)
 
-
-        # 3. Audit Defects Raw
-
-        for d in defects_list:
-
-            cur.execute("INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) VALUES (%s, %s, %s);",
-
-                        (audit_id_map[d['drawing_number']], d['defect_code'], d['penalty_points']))
-
-
-
-        # 4. PDF Total Occurrences
-
-        for o in occurrences_list:
-
-            cur.execute("INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) VALUES (%s, %s, %s);",
-
-                        (summary_id, o['defect_code'], o['total_count']))
-
-
-
-        conn.commit()
-
-    except Exception as e:
-
-        conn.rollback()
-
-        raise e
-
-    finally:
-
-        cur.close()
-
-        conn.close()
-
-
-
-# --- SIDEBAR ---
-
-with strl.sidebar:
-
-    if os.path.exists("logo.png"): strl.image("logo.png", use_column_width=True)
-
-    strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
-
-    strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
-
-
-
-# --- TABS ---
-
-tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
-
-
-
-# --- DATA INTAKE ---
-
-with tab1:
-
-    strl.header("Data Intake Portal")
-
-    uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-
-   
-
-    if uploaded_file and strl.button("🚀 Inject into Production Database"):
+    # --- ANALYTICS REGISTER ---
+    with tab2:
+        strl.header("Quality Analytics Register")
+        subtab1, subtab2, subtab3, subtab4 = strl.tabs([
+            "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
+        ])
 
         try:
+            conn = get_db_connection()
 
-            summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+            with subtab1:
+                df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                if not df1.empty:
+                    strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
 
-           
+            with subtab2:
+                query2 = """
+                    SELECT s.plant, h.* FROM public.harness_audits h
+                    JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                """
+                df2 = pd.read_sql(query2, conn)
+                if not df2.empty:
+                    strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
 
-            defects = []
+            with subtab3:
+                query3 = """
+                    SELECT s.plant, d.* FROM public.audit_defects_raw d
+                    JOIN public.harness_audits h ON d.audit_id = h.audit_id
+                    JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                """
+                df3 = pd.read_sql(query3, conn)
+                if not df3.empty:
+                    strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
 
-            occurrences = []
+            with subtab4:
+                query4 = """
+                    SELECT s.plant, o.* FROM public.pdf_total_occurrences o
+                    JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                """
+                df4 = pd.read_sql(query4, conn)
+                if not df4.empty:
+                    strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
 
-            for h in details:
-
-                for d in h.get("raw_defects_list", []):
-
-                    defects.append({
-
-                        "drawing_number": h["drawing_number"],
-
-                        "defect_code": d["code"],
-
-                        "penalty_points": d["points"]
-
-                    })
-
-                    occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-
-                    if occ_found: occ_found["total_count"] += 1
-
-                    else: occurrences.append({"defect_code": d["code"], "total_count": 1})
-
-
-
-            strl.write("Injection in progress...")
-
-            save_to_database(summary, details, defects, occurrences)
-
-            strl.success("✅ Data successfully injected into all 5 tables!")
-
-           
-
+            conn.close()
         except Exception as e:
-
-            strl.error(f"Injection Failed: {str(e)}")
-
-            strl.exception(e)
-
-
-
-# --- ANALYTICS REGISTER ---
-
-with tab2:
-
-    strl.header("Quality Analytics Register")
-
-    subtab1, subtab2, subtab3, subtab4 = strl.tabs([
-
-        "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
-
-    ])
-
-
-
-    try:
-
-        conn = get_db_connection()
-
-
-
-        with subtab1:
-
-            df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-
-            strl.dataframe(df1.drop(columns=['summary_id']), use_container_width=True)
-
-
-
-        with subtab2:
-
-            query2 = """
-
-                SELECT s.plant, h.* FROM public.harness_audits h
-
-                JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-
-            """
-
-            df2 = pd.read_sql(query2, conn).drop(columns=['summary_id', 'audit_id'])
-
-            strl.dataframe(df2, use_container_width=True)
-
-
-
-        with subtab3:
-
-            query3 = """
-
-                SELECT s.plant, d.* FROM public.audit_defects_raw d
-
-                JOIN public.harness_audits h ON d.audit_id = h.audit_id
-
-                JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-
-            """
-
-            df3 = pd.read_sql(query3, conn).drop(columns=['audit_id'])
-
-            strl.dataframe(df3, use_container_width=True)
-
-
-
-        with subtab4:
-
-            query4 = """
-
-                SELECT s.plant, o.* FROM public.pdf_total_occurrences o
-
-                JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-
-            """
-
-            df4 = pd.read_sql(query4, conn).drop(columns=['summary_id'])
-
-            strl.dataframe(df4, use_container_width=True)
-
-
-
-        conn.close()
-
-    except Exception as e:
-
-        strl.error(f"Erreur : {str(e)}")
-
-
-
-# --- DASHBOARD ---
-
-with tab3:
-
-    strl.header("Performance Dashboard")
-
-    try:
-
-        conn = get_db_connection()
-
-        df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
-
-        conn.close()
-
-       
-
-        if not df_dash.empty:
-
-            fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
-
-           
-
-            # --- APPLIQUER LE MÊME THÈME SOMBRE AU GRAPHIQUE PLOTLY ---
-
-            fig.update_layout(
-
-                paper_bgcolor='rgba(0,0,0,0)', # Fond transparent pour voir la voiture derrière
-
-                plot_bgcolor='rgba(0,0,0,0)',
-
-                font_color="#ffffff",
-
-                title_font_color="#ffffff"
-
-            )
-
-            strl.plotly_chart(fig, use_container_width=True)
-
-        else:
-
-            strl.info("Dashboard awaiting data...")
-
-    except Exception as e:
-
-        strl.error(f"Dashboard Load Error: {str(e)}") 
+            strl.error(f"Error loading registers: {str(e)}")
+
+    # --- DASHBOARD ---
+    with tab3:
+        strl.header("Performance Dashboard")
+        try:
+            conn = get_db_connection()
+            df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
+            conn.close()
+            
+            if not df_dash.empty:
+                fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font_color="#ffffff",
+                    title_font_color="#ffffff"
+                )
+                strl.plotly_chart(fig, use_container_width=True)
+            else:
+                strl.info("Dashboard awaiting production data...")
+        except Exception as e:
+            strl.error(f"Dashboard Load Error: {str(e)}")
