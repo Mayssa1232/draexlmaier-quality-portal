@@ -481,7 +481,7 @@ try:
                 strl.error(f"Dashboard Load Error: {str(e)}")
 
 except Exception:
-    # En mettant 'Exception' à la place de 'NameError', on attrape TOUT.
+      # En mettant 'Exception' à la place de 'NameError', on attrape TOUT.
     # Si Streamlit bug pendant une demi-seconde au démarrage, il se tait
     # et attend le prochain cycle sans rien afficher à l'utilisateur.
     pass
