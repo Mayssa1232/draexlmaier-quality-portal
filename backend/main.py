@@ -59,7 +59,7 @@ initial_design_css = """
     
     /* Style for Forms & Cards */
     div[data-testid="stForm"] {
-        background-color: rgba(22, 27, 34, 0.85);
+        background-color: rgba(0, 0, 0, 0.85);
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 25px;
@@ -91,6 +91,30 @@ initial_design_css = """
         background-color: #00ffd0 !important;
         color: #0e1117 !important;
         border-color: #00ffd0 !important;
+    }
+
+    /* 🎨 NOUVEAU : Modification de la couleur de fond de la section UPLOAD */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: rgba(133, 153, 193, 0.3) !important; /* Votre couleur rgb(133 153 193 / 30%) */
+        border-radius: 8px !important;
+        transition: background-color 0.2s ease-in-out !important;
+    }
+
+    /* Effet de survol optionnel sur la zone d'upload pour garder une interface dynamique */
+    [data-testid="stFileUploaderDropzone"]:hover {
+        background-color: rgba(133, 153, 193, 0.45) !important; /* Légèrement plus opaque au survol */
+    }
+
+    /* Ajustement des textes et boutons internes de la zone d'upload */
+    [data-testid="stFileUploaderDropzone"] span,
+    [data-testid="stFileUploaderDropzone"] small {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stFileUploaderDropzone"] button {
+        background-color: #21262d !important;
+        color: #ffffff !important;
+        border: 1px solid #30363d !important;
     }
 </style>
 """
@@ -192,7 +216,7 @@ if not st.session_state.get("authentication_status"):
         st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>Quality Audit Portal</h3>", unsafe_allow_html=True)
         
-        auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Create Account"])
+        auth_tab1, auth_tab2 = st.tabs([" Sign In", " Create Account"])
         
         with auth_tab1:
             authenticator.login()
@@ -228,13 +252,20 @@ if not st.session_state.get("authentication_status"):
                             if cur.fetchone():
                                 st.error("This username or email is already taken.")
                             else:
+                                # 1. Insertion de l'utilisateur dans Neon
                                 cur.execute(
                                     "INSERT INTO users (username, name, password_hash, email) VALUES (%s, %s, %s, %s)",
                                     (new_username, new_name, hashed_password, new_email)
                                 )
                                 conn.commit()
+                                
+                                # 🚨 RECHARGE DYNAMIQUE : On force l'application à lire le nouvel utilisateur immédiatement
+                                updated_credentials = load_users_from_db()
+                                authenticator.credentials = updated_credentials
+                                
                                 st.success("Account created successfully! You can now log in.")
                                 st.rerun()
+                            
                             cur.close()
                             conn.close()
                         except Exception as e:
@@ -243,19 +274,14 @@ if not st.session_state.get("authentication_status"):
 # =========================================================================
 # --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
 # =========================================================================
-# =========================================================================
-# --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
-# =========================================================================
 else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    authenticator.logout('Log Out', 'sidebar')
-    st.sidebar.title(f"Welcome, {name}")
-    
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
 
+    # Application du CSS global (Garde vos styles personnalisés actifs)
     production_design_css = """
     <style>
         html, body, .stApp {
@@ -275,8 +301,8 @@ else:
             border: none !important;
         }
         .stTabs button[aria-selected="true"] {
-            color: #ff4b4b !important;
-            border-bottom: 2px solid #ff4b4b !important;
+            color: #00FFD0 !important;
+            border-bottom: 2px solid #00FFD0 !important;
         }
         .stButton>button {
             width: 100%;
@@ -288,33 +314,57 @@ else:
         }
         .stButton>button:hover, .stButton>button:active {
             background-color: rgba(47, 55, 105, 0.9) !important;
-            border-color: #ff4b4b !important;
+            border-color: #00FFD0 !important;
+        }
+        /* Style spécifique pour pousser le bouton logout vers le bas de la sidebar */
+        .bottom-logout {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
         }
     </style>
     """
     strl.markdown(production_design_css, unsafe_allow_html=True)
 
+    # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
     with strl.sidebar:
+        # 1. Nom de l'entreprise (et logo si existant)
         if os.path.exists("logo.png"): 
             strl.image("logo.png", use_column_width=True)
-        strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
-        strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
+        strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
+        strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
-        strl.markdown("<h4 style='color: #ff4b4b;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
+        
+        # 2. Message de bienvenue avec le nom d'utilisateur
+        strl.markdown(f"<h3 style='text-align: center; color: #00ffd0;'>Welcome, {name}</h3>", unsafe_allow_html=True)
+        strl.markdown(f"<p style='text-align: center; color: #a3a8b4;'>@{username}</p>", unsafe_allow_html=True)
+        
+        strl.markdown("---")
+        
+        # 3. Danger Zone et son sélecteur (Checkbox + Bouton)
+        strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
-        if strl.button("🚨 Wipe Database Data", disabled=not confirm_wipe):
+        if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
             try:
                 clear_production_database()
-                strl.success("💥 Database successfully cleared!")
+                strl.success(" Database successfully cleared!")
                 strl.rerun()
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
+        
+        # 4. Bouton de déconnexion placé tout en bas
+        # Utilisation de petits espacements vides pour repousser proprement le bouton
+        for _ in range(8):
+            strl.write("")
+            
+        strl.markdown("---")
+        authenticator.logout(' Log Out', 'sidebar')
 
-    # Instanciation unique et sécurisée des conteneurs d'onglets
+    # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
-
 try:
     # On vérifie de manière stricte si la variable locale ou globale tab1 existe
     if 'tab1' in locals() or 'tab1' in globals():
@@ -331,9 +381,9 @@ try:
 
             uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
             
-            if uploaded_file and strl.button("🚀 Inject into Database"):
+            if uploaded_file and strl.button(" Inject into Database"):
                 try:
-                    status_text = strl.info("⏳ Processing PDF and preparing database injection...")
+                    status_text = strl.info(" Processing PDF and preparing database injection...")
                     summary, details = extract_dynamic_pdf_data(uploaded_file.read())
                     
                     defects = []
@@ -354,7 +404,7 @@ try:
                     save_to_database(summary, details, defects, occurrences)
                     status_text.empty()
                     
-                    st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
+                    st.session_state["injection_success"] = " Data successfully injected into all tables!"
                     strl.rerun()
                     
                 except Exception as e:
@@ -419,7 +469,7 @@ try:
                 if not df_dash.empty:
                     fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
                     fig.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)', 
+                        paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
                         font_color="#ffffff",
                         title_font_color="#ffffff"

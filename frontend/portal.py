@@ -216,7 +216,7 @@ if not st.session_state.get("authentication_status"):
         st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>Quality Audit Portal</h3>", unsafe_allow_html=True)
         
-        auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Create Account"])
+        auth_tab1, auth_tab2 = st.tabs([" Sign In", " Create Account"])
         
         with auth_tab1:
             authenticator.login()
@@ -361,7 +361,7 @@ else:
             strl.write("")
             
         strl.markdown("---")
-        authenticator.logout('🚪 Log Out', 'sidebar')
+        authenticator.logout(' Log Out', 'sidebar')
 
     # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
