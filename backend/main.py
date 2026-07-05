@@ -32,8 +32,6 @@ initial_design_css = """
         color: #ffffff;
     }
     
-    /* ─── NETTOYAGE COMPATIBLE DE LA DOUBLE LIGNE ─── */
-    
     /* Cible l'indicateur rouge mobile par défaut de Streamlit pour le masquer complètement */
     [data-testid="stBaseButton-inline"], 
     [data-baseweb="tab-highlight"] {
@@ -45,14 +43,14 @@ initial_design_css = """
     .stTabs [data-baseweb="tab"] {
         color: #a3a8b4 !important;
         font-weight: 600 !important;
-        border-bottom: 3px solid transparent !important; /* Réserve l'espace au repos */
+        border-bottom: 3px solid transparent !important;
         padding: 10px 20px !important;
     }
     
     /* LIGNE VERTE UNIQUE ET RETOUR DU TEXTE sur l'onglet sélectionné */
     .stTabs [aria-selected="true"] {
         color: #00ffd0 !important;
-        border-bottom: 3px solid #00ffd0 !important; /* Notre ligne verte unique */
+        border-bottom: 3px solid #00ffd0 !important;
     }
     
     /* Style for Forms & Cards */
@@ -114,21 +112,77 @@ def load_users_from_db():
         st.error(f"Database connection error: {e}")
     return credentials
 
-# Load all valid accounts
 credentials = load_users_from_db()
 
 # --- SECURE JWT INITIALIZATION ---
 authenticator = stauth.Authenticate(
     credentials,
     'quality_portal_cookie',
-    'une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026', # Compliant >32 bytes key
+    'une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026',
     cookie_expiry_days=30
 )
+
+# --- DANGER ZONE DATA CORRECTION FUNCTION ---
+def clear_production_database():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("TRUNCATE TABLE public.audit_defects_raw RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE public.pdf_total_occurrences RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE public.harness_audits RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE public.monthly_summaries RESTART IDENTITY CASCADE;")
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cur.close()
+        conn.close()
+
+# --- MULTI-TABLE INJECTION FUNCTION ---
+def save_to_database(summary, details, defects_list, occurrences_list):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO public.monthly_summaries
+            (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
+        """, (summary['supplier'], summary['plant'], summary['country'],
+              str(summary['report_month']), str(summary['report_year']),
+              summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
+        summary_id = cur.fetchone()[0]
+
+        audit_id_map = {}
+        for r in details:
+            cur.execute("""
+                INSERT INTO public.harness_audits
+                (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
+            """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
+                  r['defect_count'], r['defect_points'], r['auditor_name'], r['calculation_factor'],
+                  r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
+            audit_id_map[r['drawing_number']] = cur.fetchone()[0]
+
+        for d in defects_list:
+            cur.execute("INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) VALUES (%s, %s, %s);",
+                        (audit_id_map[d['drawing_number']], d['defect_code'], d['penalty_points']))
+
+        for o in occurrences_list:
+            cur.execute("INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) VALUES (%s, %s, %s);",
+                        (summary_id, o['defect_code'], o['total_count']))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cur.close()
+        conn.close()
 
 # --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
 if not st.session_state.get("authentication_status"):
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
         st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>Quality Audit Portal</h3>", unsafe_allow_html=True)
@@ -184,7 +238,7 @@ if not st.session_state.get("authentication_status"):
 # =========================================================================
 # --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
 # =========================================================================
-if st.session_state.get("authentication_status"):
+else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
@@ -205,13 +259,10 @@ if st.session_state.get("authentication_status"):
             background-size: cover !important;
             color: #ffffff;
         }
-       
         .stSidebar { 
             background: rgba(13, 14, 18, 0.8) !important; 
             border-right: 1px solid #334155; 
         }
-
-        /* Style for Workspace Tabs - RED line inside the platform */
         .stTabs button {
             color: #a3a8b4 !important;
             font-weight: 600 !important;
@@ -220,10 +271,8 @@ if st.session_state.get("authentication_status"):
         }
         .stTabs button[aria-selected="true"] {
             color: #ff4b4b !important;
-            border-bottom: 2px solid #ff4b4b !important; /* Red line replacing the green one */
+            border-bottom: 2px solid #ff4b4b !important;
         }
-
-        /* Custom Action Buttons */
         .stButton>button {
             width: 100%;
             border-radius: 6px;
@@ -234,10 +283,8 @@ if st.session_state.get("authentication_status"):
         }
         .stButton>button:hover, .stButton>button:active {
             background-color: rgba(47, 55, 105, 0.9) !important;
-            border-color: #ff4b4b !important; /* Red highlight on hover inside */
+            border-color: #ff4b4b !important;
         }
-
-        /* File Uploader Custom Dark styling */
         .stFileUploader label p { color: #ffffff !important; }
         [data-testid="stFileUploaderDropzone"] {
             background-color: rgba(30, 41, 59, 0.5) !important;
@@ -260,68 +307,6 @@ if st.session_state.get("authentication_status"):
     """
     strl.markdown(production_design_css, unsafe_allow_html=True)
 
-    # --- MULTI-TABLE INJECTION FUNCTION ---
-    def save_to_database(summary, details, defects_list, occurrences_list):
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            # 1. Monthly Summaries Table
-            cur.execute("""
-                INSERT INTO public.monthly_summaries
-                (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
-            """, (summary['supplier'], summary['plant'], summary['country'],
-                  str(summary['report_month']), str(summary['report_year']),
-                  summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
-            summary_id = cur.fetchone()[0]
-
-            # 2. Harness Audits Table
-            audit_id_map = {}
-            for r in details:
-                cur.execute("""
-                    INSERT INTO public.harness_audits
-                    (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
-                """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
-                      r['defect_count'], r['defect_points'], r['auditor_name'], r['calculation_factor'],
-                      r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
-                audit_id_map[r['drawing_number']] = cur.fetchone()[0]
-
-            # 3. Audit Defects Raw Table
-            for d in defects_list:
-                cur.execute("INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) VALUES (%s, %s, %s);",
-                            (audit_id_map[d['drawing_number']], d['defect_code'], d['penalty_points']))
-
-            # 4. PDF Total Occurrences Table
-            for o in occurrences_list:
-                cur.execute("INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) VALUES (%s, %s, %s);",
-                            (summary_id, o['defect_code'], o['total_count']))
-
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
-
-    # --- WIPE DATABASE FUNCTION (PRESERVING USERS) ---
-    def clear_production_database():
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute("TRUNCATE TABLE public.audit_defects_raw RESTART IDENTITY CASCADE;")
-            cur.execute("TRUNCATE TABLE public.pdf_total_occurrences RESTART IDENTITY CASCADE;")
-            cur.execute("TRUNCATE TABLE public.harness_audits RESTART IDENTITY CASCADE;")
-            cur.execute("TRUNCATE TABLE public.monthly_summaries RESTART IDENTITY CASCADE;")
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
-
     # --- SIDEBAR COMPONENTS ---
     with strl.sidebar:
         if os.path.exists("logo.png"): 
@@ -343,7 +328,6 @@ if st.session_state.get("authentication_status"):
                 strl.error(f"Failed to clear database: {str(e)}")
 
     # --- WORKSPACE TABS ---
-    # Placed safely at the root of the secure workspace block (Dedent from Sidebar)
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
     # --- DATA INTAKE ---
