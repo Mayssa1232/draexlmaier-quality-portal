@@ -96,7 +96,6 @@ initial_design_css = """
     /* 🎨 NOUVEAU : Modification de la couleur de fond de la section UPLOAD */
     [data-testid="stFileUploaderDropzone"] {
         background-color: rgba(133, 153, 193, 0.3) !important; /* Votre couleur rgb(133 153 193 / 30%) */
-        border: 2px dashed #00ffd0 !important;                /* Bordure pointillée turquoise */
         border-radius: 8px !important;
         transition: background-color 0.2s ease-in-out !important;
     }
