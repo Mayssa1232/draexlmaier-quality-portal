@@ -23,9 +23,10 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 # This styling applies to the login/registration interface at startup with the car background
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 # This styling applies to the login/registration interface at startup with the car background
+# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 initial_design_css = """
 <style>
-    /* Main Background with Car Image & Text Color */
+    /* Main Background with Car Image */
     html, body, .stApp {
         background: linear-gradient(135deg, rgba(13, 14, 18, 0.88) 0%, rgba(22, 25, 32, 0.94) 100%),
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
@@ -33,26 +34,42 @@ initial_design_css = """
         color: #ffffff;
     }
     
-    /* Style for Tabs (Login / Register) - CLEAN SINGLE GREEN line for Authentication */
-    .stTabs [data-baseweb="tab-list"] {
-        border-bottom: none !important; /* Supprime la ligne grise/rouge globale par défaut sous les onglets */
+    /* ─── NETTOYAGE ABSOLU DE LA DOUBLE LIGNE DES ONGLETS ─── */
+    
+    /* 1. Supprime la ligne rouge globale sous TOUS les onglets */
+    .stTabs [data-baseweb="tab-list"], 
+    .stTabs [data-baseweb="tab-list"]::after {
+        border-bottom: none !important;
+        background-color: transparent !important;
+        height: 0px !important;
     }
     
+    /* 2. Supprime la barre d'accentuation dynamique native de Streamlit (la ligne rouge mouvante) */
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
+        display: none !important;
+        height: 0px !important;
+    }
+    
+    /* 3. Style de base des boutons d'onglets au repos */
     .stTabs button {
         color: #a3a8b4 !important;
         font-weight: 600 !important;
         background-color: transparent !important;
         border: none !important;
-        box-shadow: none !important; /* Supprime les ombres ou bordures cachées de Streamlit */
+        box-shadow: none !important;
+        border-bottom: 3px solid transparent !important; /* Réserve l'espace au repos */
     }
     
+    /* 4. LIGNE VERTE UNIQUE sur l'onglet sélectionné */
     .stTabs button[aria-selected="true"] {
         color: #00ffd0 !important;
         border-bottom: 3px solid #00ffd0 !important; /* Ligne verte unique et nette */
         box-shadow: none !important;
+        background-color: transparent !important;
     }
     
-    /* Style for Forms & Cards */
+    /* Cards, Inputs & Buttons */
     div[data-testid="stForm"] {
         background-color: rgba(22, 27, 34, 0.85);
         border: 1px solid #30363d;
@@ -60,8 +77,6 @@ initial_design_css = """
         padding: 25px;
         backdrop-filter: blur(10px);
     }
-    
-    /* Inputs Styling */
     .stTextInput input {
         background-color: #0d1117 !important;
         color: #ffffff !important;
@@ -71,8 +86,6 @@ initial_design_css = """
         border-color: #00ffd0 !important;
         box-shadow: 0 0 0 1px #00ffd0 !important;
     }
-    
-    /* Buttons Styling */
     .stButton button {
         width: 100%;
         border-radius: 6px;
