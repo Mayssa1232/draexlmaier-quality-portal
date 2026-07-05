@@ -17,8 +17,9 @@ strl = st
 # 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# 🚨 FIX CRUCIAL : Initialisation défensive globale pour éradiquer le NameError
-tab1, tab2, tab3 = None, None, None
+# 🚨 SÉCURITÉ ABSOLUE : Injection dans le Session State pour tuer le NameError définitivement
+if "tabs_initialized" not in st.session_state:
+    st.session_state["tabs_initialized"] = False
 
 # --- PATH & IMPORT ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
@@ -185,6 +186,7 @@ def save_to_database(summary, details, defects_list, occurrences_list):
 
 # --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
 if not st.session_state.get("authentication_status"):
+    st.session_state["tabs_initialized"] = False
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
@@ -245,15 +247,12 @@ else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    # Sidebar logout configuration
     authenticator.logout('Log Out', 'sidebar')
     st.sidebar.title(f"Welcome, {name}")
     
-    # Session state variable for relational filtering
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
 
-    # --- ADVANCED PRODUCTION GRAPHICS & BACKGROUND DESIGN ---
     production_design_css = """
     <style>
         html, body, .stApp {
@@ -288,29 +287,10 @@ else:
             background-color: rgba(47, 55, 105, 0.9) !important;
             border-color: #ff4b4b !important;
         }
-        .stFileUploader label p { color: #ffffff !important; }
-        [data-testid="stFileUploaderDropzone"] {
-            background-color: rgba(30, 41, 59, 0.5) !important;
-            border: 2px dashed #475569 !important;
-            border-radius: 8px !important;
-        }
-        [data-testid="stFileUploaderDropzone"] span,
-        [data-testid="stFileUploaderDropzone"] small {
-            color: #cbd5e1 !important;
-        }
-        [data-testid="stFileUploaderDropzone"] button {
-            background-color: rgba(15, 23, 42, 0.9) !important;
-            color: #ffffff !important;
-            border: 1px solid #475569 !important;
-        }
-        [data-testid="stFileUploaderDropzone"] button:hover {
-            background-color: rgba(30, 41, 59, 1) !important;
-        }
     </style>
     """
     strl.markdown(production_design_css, unsafe_allow_html=True)
 
-    # --- SIDEBAR COMPONENTS ---
     with strl.sidebar:
         if os.path.exists("logo.png"): 
             strl.image("logo.png", use_column_width=True)
@@ -319,7 +299,6 @@ else:
         
         strl.markdown("---")
         strl.markdown("<h4 style='color: #ff4b4b;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
-        
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
         if strl.button("🚨 Wipe Database Data", disabled=not confirm_wipe):
@@ -330,13 +309,18 @@ else:
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
 
-    # --- WORKSPACE TABS ---
-    tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
+    # Instanciation unique et sécurisée des conteneurs d'onglets
+    t1, t2, t3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
+    st.session_state["tab1_container"] = t1
+    st.session_state["tab2_container"] = t2
+    st.session_state["tab3_container"] = t3
+    st.session_state["tabs_initialized"] = True
 
-# --- CONDITIONAL RENDERING TO AVOID NAMEERROR ---
-if tab1 is not None:
+# --- RENDERING VIA SESSION STATE GUARDIAN ---
+if st.session_state.get("tabs_initialized") == True:
+    
     # --- DATA INTAKE ---
-    with tab1:
+    with st.session_state["tab1_container"]:
         strl.header("Data Intake Portal")
         
         if "injection_success" in st.session_state:
@@ -378,7 +362,7 @@ if tab1 is not None:
                 strl.exception(e)
 
     # --- ANALYTICS REGISTER ---
-    with tab2:
+    with st.session_state["tab2_container"]:
         strl.header("Quality Analytics Register")
         subtab1, subtab2, subtab3, subtab4 = strl.tabs([
             "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
@@ -425,7 +409,7 @@ if tab1 is not None:
             strl.error(f"Error loading registers: {str(e)}")
 
     # --- DASHBOARD ---
-    with tab3:
+    with st.session_state["tab3_container"]:
         strl.header("Performance Dashboard")
         try:
             conn = get_db_connection()
