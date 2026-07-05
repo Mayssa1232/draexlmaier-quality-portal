@@ -294,8 +294,8 @@ else:
             border: none !important;
         }
         .stTabs button[aria-selected="true"] {
-            color: #ff4b4b !important;
-            border-bottom: 2px solid #ff4b4b !important;
+            color: #00FFD0 !important;
+            border-bottom: 2px solid #00FFD0 !important;
         }
         .stButton>button {
             width: 100%;
@@ -307,7 +307,7 @@ else:
         }
         .stButton>button:hover, .stButton>button:active {
             background-color: rgba(47, 55, 105, 0.9) !important;
-            border-color: #ff4b4b !important;
+            border-color: #00FFD0 !important;
         }
         /* Style spécifique pour pousser le bouton logout vers le bas de la sidebar */
         .bottom-logout {
@@ -331,7 +331,7 @@ else:
         strl.markdown("---")
         
         # 2. Message de bienvenue avec le nom d'utilisateur
-        strl.markdown(f"<h3 style='text-align: center; color: #448ACF;'>Welcome, {name}</h3>", unsafe_allow_html=True)
+        strl.markdown(f"<h3 style='text-align: center; color: #00ffd0;'>Welcome, {name}</h3>", unsafe_allow_html=True)
         strl.markdown(f"<p style='text-align: center; color: #a3a8b4;'>@{username}</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
