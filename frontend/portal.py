@@ -271,15 +271,16 @@ if not st.session_state.get("authentication_status"):
 # --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
 # =========================================================================
 else:
+    st.sidebar.title(f"Welcome, {name}")
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    authenticator.logout('Log Out', 'sidebar')
-    st.sidebar.title(f"Welcome, {name}")
+    
+    
     
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
-
+    authenticator.logout('Log Out', 'sidebar')
     production_design_css = """
     <style>
         html, body, .stApp {
