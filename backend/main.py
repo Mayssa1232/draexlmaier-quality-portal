@@ -313,7 +313,7 @@ else:
                 strl.error(f"Failed to clear database: {str(e)}")
 
     # Instanciation unique et sécurisée des conteneurs d'onglets
-tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
+    tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
 try:
     # On vérifie de manière stricte si la variable locale ou globale tab1 existe
@@ -430,6 +430,8 @@ try:
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
 
-except NameError:
-    # Si tab1 n'est pas encore défini pendant le rafraîchissement, Python ignore silencieusement
+except Exception:
+    # En mettant 'Exception' à la place de 'NameError', on attrape TOUT.
+    # Si Streamlit bug pendant une demi-seconde au démarrage, il se tait
+    # et attend le prochain cycle sans rien afficher à l'utilisateur.
     pass
