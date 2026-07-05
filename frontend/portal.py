@@ -106,7 +106,7 @@ initial_design_css = """
     }
 
     /* Ajustement des textes et boutons internes de la zone d'upload */
-    [data-testid="stFileUploaderDropzone"] span, 
+    [data-testid="stFileUploaderDropzone"] span,
     [data-testid="stFileUploaderDropzone"] small {
         color: #ffffff !important;
     }
@@ -267,19 +267,14 @@ if not st.session_state.get("authentication_status"):
 # =========================================================================
 # --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
 # =========================================================================
-# =========================================================================
-# --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
-# =========================================================================
 else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    authenticator.logout('Log Out', 'sidebar')
-    st.sidebar.title(f"Welcome, {name}")
-    
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
 
+    # Application du CSS global (Garde vos styles personnalisés actifs)
     production_design_css = """
     <style>
         html, body, .stApp {
@@ -314,18 +309,35 @@ else:
             background-color: rgba(47, 55, 105, 0.9) !important;
             border-color: #ff4b4b !important;
         }
+        /* Style spécifique pour pousser le bouton logout vers le bas de la sidebar */
+        .bottom-logout {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+        }
     </style>
     """
     strl.markdown(production_design_css, unsafe_allow_html=True)
 
+    # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
     with strl.sidebar:
+        # 1. Nom de l'entreprise (et logo si existant)
         if os.path.exists("logo.png"): 
             strl.image("logo.png", use_column_width=True)
-        strl.markdown("<h2 style='text-align: center;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
-        strl.markdown("<p style='text-align: center; color: #94a3b8;'>Automotive System Quality</p>", unsafe_allow_html=True)
+        strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>D-DRÄXLMAIER</h2>", unsafe_allow_html=True)
+        strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
-        strl.markdown("<h4 style='color: #ff4b4b;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
+        
+        # 2. Message de bienvenue avec le nom d'utilisateur
+        strl.markdown(f"<h3 style='text-align: center; color: #00ffd0;'>Welcome, {name}</h3>", unsafe_allow_html=True)
+        strl.markdown(f"<p style='text-align: center; color: #a3a8b4;'>@{username}</p>", unsafe_allow_html=True)
+        
+        strl.markdown("---")
+        
+        # 3. Danger Zone et son sélecteur (Checkbox + Bouton)
+        strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
         if strl.button("🚨 Wipe Database Data", disabled=not confirm_wipe):
@@ -335,10 +347,17 @@ else:
                 strl.rerun()
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
+        
+        # 4. Bouton de déconnexion placé tout en bas
+        # Utilisation de petits espacements vides pour repousser proprement le bouton
+        for _ in range(8):
+            strl.write("")
+            
+        strl.markdown("---")
+        authenticator.logout('🚪 Log Out', 'sidebar')
 
-    # Instanciation unique et sécurisée des conteneurs d'onglets
+    # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
-
 try:
     # On vérifie de manière stricte si la variable locale ou globale tab1 existe
     if 'tab1' in locals() or 'tab1' in globals():
