@@ -313,15 +313,14 @@ else:
                 strl.error(f"Failed to clear database: {str(e)}")
 
     # Instanciation unique et sécurisée des conteneurs d'onglets
-    tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
+tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-# --- 🚨 SÉCURITÉ ANTI-MESSAGE ROUGE : TRY/EXCEPT SUR LE RENDU DES ONGLETS ---
 try:
     # On vérifie de manière stricte si la variable locale ou globale tab1 existe
     if 'tab1' in locals() or 'tab1' in globals():
         
         # --- DATA INTAKE ---
-        with tab1:
+        with tab1 :
             strl.header("Data Intake Portal")
             
             if "injection_success" in st.session_state:
