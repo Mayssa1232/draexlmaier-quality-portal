@@ -104,7 +104,6 @@ initial_design_css = """
     /* Effet de survol optionnel sur la zone d'upload pour garder une interface dynamique */
     [data-testid="stFileUploaderDropzone"]:hover {
         background-color: rgba(133, 153, 193, 0.45) !important; /* Légèrement plus opaque au survol */
-        border-color: #ff4b4b !important;                       /* Bordure passe au rouge DRÄXLMAIER */
     }
 
     /* Ajustement des textes et boutons internes de la zone d'upload */
