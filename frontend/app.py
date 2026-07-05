@@ -21,6 +21,8 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 # This styling applies to the login/registration interface at startup
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 # This styling applies to the login/registration interface at startup with the car background
+# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
+# This styling applies to the login/registration interface at startup with the car background
 initial_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
@@ -31,16 +33,23 @@ initial_design_css = """
         color: #ffffff;
     }
     
-    /* Style for Tabs (Login / Register) - GREEN line for Authentication */
+    /* Style for Tabs (Login / Register) - CLEAN SINGLE GREEN line for Authentication */
+    .stTabs [data-baseweb="tab-list"] {
+        border-bottom: none !important; /* Supprime la ligne grise/rouge globale par défaut sous les onglets */
+    }
+    
     .stTabs button {
         color: #a3a8b4 !important;
         font-weight: 600 !important;
         background-color: transparent !important;
         border: none !important;
+        box-shadow: none !important; /* Supprime les ombres ou bordures cachées de Streamlit */
     }
+    
     .stTabs button[aria-selected="true"] {
         color: #00ffd0 !important;
-        border-bottom: 2px solid #00ffd0 !important; /* Green line */
+        border-bottom: 3px solid #00ffd0 !important; /* Ligne verte unique et nette */
+        box-shadow: none !important;
     }
     
     /* Style for Forms & Cards */
