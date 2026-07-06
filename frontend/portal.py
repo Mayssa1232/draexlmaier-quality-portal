@@ -187,7 +187,8 @@ def clear_production_database():
         conn.close()
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
-def save_to_database(summary, details, defects_list, occurrences_list):
+# --- MULTI-TABLE INJECTION FUNCTION (WITH USER ISOLATION USING EXISTING SCHEMA) ---
+def save_to_database(summary, details, defects_list, occurrences_list, username):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -196,8 +197,8 @@ def save_to_database(summary, details, defects_list, occurrences_list):
             (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
         """, (summary['supplier'], summary['plant'], summary['country'],
-              str(summary['report_month']), str(summary['report_year']),
-              summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
+                str(summary['report_month']), str(summary['report_year']),
+                summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
         summary_id = cur.fetchone()[0]
 
         audit_id_map = {}
@@ -207,8 +208,8 @@ def save_to_database(summary, details, defects_list, occurrences_list):
                 (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
             """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
-                  r['defect_count'], r['defect_points'], r['auditor_name'], r['calculation_factor'],
-                  r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
+                    r['defect_count'], r['defect_points'], username, r['calculation_factor'], # 🌟 Saved 'username' into 'auditor_name'
+                    r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
             audit_id_map[r['drawing_number']] = cur.fetchone()[0]
 
         for d in defects_list:
@@ -421,12 +422,16 @@ try:
                             else: 
                                 occurrences.append({"defect_code": d["code"], "total_count": 1})
 
-                    save_to_database(summary, details, defects, occurrences)
+                    # 🌟 Récupération du username connecté (fallback sur 'Unknown' si absent par sécurité)
+                    current_username = st.session_state.get("username", "Unknown")
+
+                    # 🌟 Appel de la fonction mis à jour avec le paramètre username
+                    save_to_database(summary, details, defects, occurrences, current_username)
                     status_text.empty()
                     
                     st.session_state["injection_success"] = " Data successfully injected into all tables!"
                     strl.rerun()
-                    
+        
                 except Exception as e:
                     strl.error(f"Injection Failed: {str(e)}")
                     strl.exception(e)
