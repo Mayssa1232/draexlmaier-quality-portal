@@ -459,24 +459,95 @@ try:
                 strl.error(f"Error loading registers: {str(e)}")
 
         # --- DASHBOARD ---
+        # --- DASHBOARD ---
         with tab3:
             strl.header("Performance Dashboard")
+            
+            # Sub-navigation buttons inside VIEW DASHBOARD
+            dashboard_subtab = strl.radio(
+                "Select View:",
+                ["Quality Class average per plant", "Defect Code Frequency & Occurrence"],
+                horizontal=True
+            )
+            
+            strl.markdown("---") # Visual separation line
+            
             try:
                 conn = get_db_connection()
-                df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
-                conn.close()
                 
-                if not df_dash.empty:
-                    fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
-                    fig.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font_color="#ffffff",
-                        title_font_color="#ffffff"
-                    )
-                    strl.plotly_chart(fig, use_container_width=True)
-                else:
-                    strl.info("Dashboard awaiting production data...")
+                # --- SUB-TAB 1: Quality Class average per plant ---
+                if dashboard_subtab == "Quality Class average per plant":
+                    df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
+                    
+                    if not df_dash.empty:
+                        # 1. Existing Bar Chart
+                        fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
+                        fig.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font_color="#ffffff",
+                            title_font_color="#ffffff"
+                        )
+                        strl.plotly_chart(fig, use_container_width=True)
+                        
+                        # 2. Global QK Average Banner
+                        global_qk_avg = df_dash['qk_avg'].mean()
+                        strl.markdown(f"""
+                        <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+                            <h4 style="margin: 0; color: #ffffff;">📊 Global QK Average (All Plants Combined)</h4>
+                            <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        strl.info("Dashboard awaiting production data...")
+                
+                # --- SUB-TAB 2: Defect Code Frequency & Occurrence ---
+                elif dashboard_subtab == "Defect Code Frequency & Occurrence":
+                    # Fetch occurrence data joined with plant names
+                    query_occ = """
+                        SELECT s.plant, o.defect_code, o.total_count 
+                        FROM public.pdf_total_occurrences o
+                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                    """
+                    df_occ = pd.read_sql(query_occ, conn)
+                    
+                    if not df_occ.empty:
+                        # Layout layout split: Left for chart, Right for Selection panel
+                        col_chart, col_select = strl.columns([3, 1])
+                        
+                        with col_select:
+                            strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
+                            # Unique list of available plants
+                            plant_list = sorted(df_occ['plant'].unique())
+                            selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                        
+                        with col_chart:
+                            # Filter the occurrence data based on selected plant
+                            df_filtered = df_occ[df_occ['plant'] == selected_plant]
+                            
+                            if not df_filtered.empty:
+                                fig_occ = px.bar(
+                                    df_filtered, 
+                                    x='defect_code', 
+                                    y='total_count', 
+                                    title=f"Occurrences per Defect Code - Plant: {selected_plant}",
+                                    labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
+                                    color='total_count',
+                                    color_continuous_scale='Viridis'
+                                )
+                                fig_occ.update_layout(
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    font_color="#ffffff",
+                                    title_font_color="#ffffff"
+                                )
+                                strl.plotly_chart(fig_occ, use_container_width=True)
+                            else:
+                                strl.warning(f"No defects logged for plant: {selected_plant}.")
+                    else:
+                        strl.info("No occurrence data available at the moment.")
+                
+                conn.close()
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
 
