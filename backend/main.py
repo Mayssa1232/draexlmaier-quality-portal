@@ -26,16 +26,24 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
+# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 initial_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
     html, body, .stApp {
-        background: linear-gradient(135deg, rgba(13, 14, 18, 0.88) 0%, rgba(22, 25, 32, 0.94) 100%),
+        background: linear-gradient(135deg, rgba(13, 14, 18, 0.90) 0%, rgba(22, 25, 32, 0.96) 100%),
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
         background-size: cover !important;
-        color: #ffffff;
+        color: #ffffff !important;
     }
     
+    /* 🌟 FORCE ALL TEXTS, LABELS, MARGINS & LEGENDS TO WHITE */
+    .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
+        color: #ffffff !important;
+        font-weight: 500 !important;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important; /* Ajoute une ombre pour détacher le texte du fond */
+    }
+
     /* Cible l'indicateur rouge mobile par défaut de Streamlit pour le masquer complètement */
     [data-testid="stBaseButton-inline"], 
     [data-baseweb="tab-highlight"] {
@@ -43,9 +51,9 @@ initial_design_css = """
         display: none !important;
     }
 
-    /* Style des onglets d'authentification */
+    /* Style des onglets d'authentification et des onglets principaux */
     .stTabs [data-baseweb="tab"] {
-        color: #a3a8b4 !important;
+        color: #e2e8f0 !important; /* Blanc cassé très clair au lieu de gris sombre */
         font-weight: 600 !important;
         border-bottom: 3px solid transparent !important;
         padding: 10px 20px !important;
@@ -55,6 +63,17 @@ initial_design_css = """
     .stTabs [aria-selected="true"] {
         color: #00ffd0 !important;
         border-bottom: 3px solid #00ffd0 !important;
+    }
+    
+    /* 🌟 AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
+    [data-testid="stRadio"] label {
+        color: #ffffff !important;
+    }
+    [data-testid="stRadio"] div[role="radiogroup"] {
+        background-color: rgba(0, 0, 0, 0.4) !important;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
     }
     
     /* Style for Forms & Cards */
@@ -83,7 +102,7 @@ initial_design_css = """
         border-radius: 6px !important;
         font-weight: 600 !important;
         background-color: #21262d !important;
-        color: #c9d1d9 !important;
+        color: #ffffff !important; /* Changé de gris à blanc pur */
         border: 1px solid #30363d !important;
         transition: 0.2s ease !important;
     }
@@ -93,16 +112,16 @@ initial_design_css = """
         border-color: #00ffd0 !important;
     }
 
-    /* 🎨 NOUVEAU : Modification de la couleur de fond de la section UPLOAD */
+    /* Modification de la couleur de fond de la section UPLOAD */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: rgba(133, 153, 193, 0.3) !important; /* Votre couleur rgb(133 153 193 / 30%) */
+        background-color: rgba(133, 153, 193, 0.2) !important;
+        border: 2px dashed #00ffd0 !important; /* Ligne pointillée cyan pour une visibilité accrue */
         border-radius: 8px !important;
         transition: background-color 0.2s ease-in-out !important;
     }
 
-    /* Effet de survol optionnel sur la zone d'upload pour garder une interface dynamique */
     [data-testid="stFileUploaderDropzone"]:hover {
-        background-color: rgba(133, 153, 193, 0.45) !important; /* Légèrement plus opaque au survol */
+        background-color: rgba(133, 153, 193, 0.35) !important;
     }
 
     /* Ajustement des textes et boutons internes de la zone d'upload */
@@ -118,6 +137,7 @@ initial_design_css = """
     }
 </style>
 """
+st.markdown(initial_design_css, unsafe_allow_html=True)
 st.markdown(initial_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
@@ -288,14 +308,21 @@ else:
             background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%),
                         url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
             background-size: cover !important;
-            color: #ffffff;
+            color: #ffffff !important;
         }
+        
+        /* Forcer l'écriture blanche sur tous les composants enfants de l'espace connecté */
+        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
+            color: #ffffff !important;
+            font-weight: 500 !important;
+        }
+        
         .stSidebar { 
-            background: rgba(13, 14, 18, 0.8) !important; 
+            background: rgba(13, 14, 18, 0.84) !important; 
             border-right: 1px solid #334155; 
         }
         .stTabs button {
-            color: #a3a8b4 !important;
+            color: #e2e8f0 !important;
             font-weight: 600 !important;
             background-color: transparent !important;
             border: none !important;
@@ -316,15 +343,9 @@ else:
             background-color: rgba(47, 55, 105, 0.9) !important;
             border-color: #00FFD0 !important;
         }
-        /* Style spécifique pour pousser le bouton logout vers le bas de la sidebar */
-        .bottom-logout {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            width: calc(100% - 40px);
-        }
     </style>
     """
+    strl.markdown(production_design_css, unsafe_allow_html=True)
     strl.markdown(production_design_css, unsafe_allow_html=True)
 
     # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
