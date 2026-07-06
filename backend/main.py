@@ -514,7 +514,7 @@ try:
                         global_qk_avg = df_dash['qk_avg'].mean()
                         strl.markdown(f"""
                         <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
-                            <h4 style="margin: 0; color: #ffffff;">📊 Global QK Average (All Plants Combined)</h4>
+                            <h4 style="margin: 0; color: #ffffff;">Global QK Average (All Plants Combined)</h4>
                             <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}</p>
                         </div>
                         """, unsafe_allow_html=True)
