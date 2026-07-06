@@ -115,7 +115,6 @@ initial_design_css = """
     /* Modification de la couleur de fond de la section UPLOAD */
     [data-testid="stFileUploaderDropzone"] {
         background-color: rgba(133, 153, 193, 0.2) !important;
-        border: 2px dashed #00ffd0 !important; /* Ligne pointillée cyan pour une visibilité accrue */
         border-radius: 8px !important;
         transition: background-color 0.2s ease-in-out !important;
     }
