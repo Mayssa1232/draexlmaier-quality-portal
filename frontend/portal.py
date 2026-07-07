@@ -28,115 +28,225 @@ from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 # --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
 initial_design_css = """
+
 <style>
+
     /* Main Background with Car Image & Text Color */
+
     html, body, .stApp {
+
         background: linear-gradient(135deg, rgba(13, 14, 18, 0.90) 0%, rgba(22, 25, 32, 0.96) 100%),
+
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
+
         background-size: cover !important;
+
         color: #ffffff !important;
+
     }
-    
+
+   
+
     /* 🌟 FORCE ALL TEXTS, LABELS, MARGINS & LEGENDS TO WHITE */
+
     .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
+
         color: #ffffff !important;
+
         font-weight: 500 !important;
+
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important; /* Ajoute une ombre pour détacher le texte du fond */
+
     }
+
+
 
     /* Cible l'indicateur rouge mobile par défaut de Streamlit pour le masquer complètement */
-    [data-testid="stBaseButton-inline"], 
+
+    [data-testid="stBaseButton-inline"],
+
     [data-baseweb="tab-highlight"] {
+
         background-color: transparent !important;
+
         display: none !important;
+
     }
+
+
 
     /* Style des onglets d'authentification et des onglets principaux */
+
     .stTabs [data-baseweb="tab"] {
+
         color: #e2e8f0 !important; /* Blanc cassé très clair au lieu de gris sombre */
+
         font-weight: 600 !important;
+
         border-bottom: 3px solid transparent !important;
+
         padding: 10px 20px !important;
+
     }
-    
+
+   
+
     /* LIGNE VERTE UNIQUE ET RETOUR DU TEXTE sur l'onglet sélectionné */
+
     .stTabs [aria-selected="true"] {
+
         color: #00ffd0 !important;
+
         border-bottom: 3px solid #00ffd0 !important;
+
     }
-    
+
+   
+
     /* 🌟 AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
+
     [data-testid="stRadio"] label {
+
         color: #ffffff !important;
+
     }
+
     [data-testid="stRadio"] div[role="radiogroup"] {
+
         background-color: rgba(0, 0, 0, 0.4) !important;
+
         padding: 10px;
+
         border-radius: 8px;
+
         border: 1px solid #30363d;
+
     }
-    
+
+   
+
     /* Style for Forms & Cards */
+
     div[data-testid="stForm"] {
+
         background-color: rgba(0, 0, 0, 0.85);
+
         border: 1px solid #30363d;
+
         border-radius: 8px;
+
         padding: 25px;
+
         backdrop-filter: blur(10px);
+
     }
-    
+
+   
+
     /* Inputs Styling */
+
     .stTextInput input {
+
         background-color: #0d1117 !important;
+
         color: #ffffff !important;
+
         border: 1px solid #30363d !important;
+
     }
+
     .stTextInput input:focus {
+
         border-color: #00ffd0 !important;
+
         box-shadow: 0 0 0 1px #00ffd0 !important;
+
     }
-    
+
+   
+
     /* Form Submit Buttons Styling */
+
     div[data-testid="stForm"] button {
+
         width: 100% !important;
+
         border-radius: 6px !important;
+
         font-weight: 600 !important;
+
         background-color: #21262d !important;
+
         color: #ffffff !important; /* Changé de gris à blanc pur */
+
         border: 1px solid #30363d !important;
+
         transition: 0.2s ease !important;
+
     }
+
     div[data-testid="stForm"] button:hover {
+
         background-color: #00ffd0 !important;
+
         color: #0e1117 !important;
+
         border-color: #00ffd0 !important;
+
     }
+
+
 
     /* Modification de la couleur de fond de la section UPLOAD */
+
     [data-testid="stFileUploaderDropzone"] {
+
         background-color: rgba(133, 153, 193, 0.2) !important;
+
         border-radius: 8px !important;
+
         transition: background-color 0.2s ease-in-out !important;
+
     }
+
+
 
     [data-testid="stFileUploaderDropzone"]:hover {
+
         background-color: rgba(133, 153, 193, 0.35) !important;
+
     }
+
+
 
     /* Ajustement des textes et boutons internes de la zone d'upload */
+
     [data-testid="stFileUploaderDropzone"] span,
+
     [data-testid="stFileUploaderDropzone"] small {
+
         color: #ffffff !important;
+
     }
 
+
+
     [data-testid="stFileUploaderDropzone"] button {
+
         background-color: #21262d !important;
+
         color: #ffffff !important;
+
         border: 1px solid #30363d !important;
+
     }
+
 </style>
+
 """
+
 st.markdown(initial_design_css, unsafe_allow_html=True)
+
 st.markdown(initial_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
