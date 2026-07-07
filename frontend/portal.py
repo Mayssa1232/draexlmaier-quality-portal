@@ -17,7 +17,7 @@ strl = st
 # 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# 🚨 SÉCURITÉ ABSOLUE : Injection dans le Session State pour tuer le NameError définitivement
+# SÉCURITÉ ABSOLUE : Injection dans le Session State pour tuer le NameError définitivement
 if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
@@ -25,229 +25,116 @@ if "tabs_initialized" not in st.session_state:
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
-# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
-# --- INJECT CUSTOM DARK DESIGN CSS IMMEDIATELY ---
-initial_design_css = """
-
+# --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
+global_design_css = """
 <style>
-
     /* Main Background with Car Image & Text Color */
-
     html, body, .stApp {
-
         background: linear-gradient(135deg, rgba(13, 14, 18, 0.90) 0%, rgba(22, 25, 32, 0.96) 100%),
-
                     url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
-
         background-size: cover !important;
-
         color: #ffffff !important;
-
     }
-
-   
-
-    /* 🌟 FORCE ALL TEXTS, LABELS, MARGINS & LEGENDS TO WHITE */
-
+    
+    /* FORCE ALL TEXTS, LABELS, MARGINS & LEGENDS TO WHITE */
     .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
-
         color: #ffffff !important;
-
         font-weight: 500 !important;
-
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important; /* Ajoute une ombre pour détacher le texte du fond */
-
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-
-
-    /* Cible l'indicateur rouge mobile par défaut de Streamlit pour le masquer complètement */
-
-    [data-testid="stBaseButton-inline"],
-
+    /* Masquer l'indicateur rouge par défaut de Streamlit */
+    [data-testid="stBaseButton-inline"], 
     [data-baseweb="tab-highlight"] {
-
         background-color: transparent !important;
-
         display: none !important;
-
     }
 
-
-
-    /* Style des onglets d'authentification et des onglets principaux */
-
+    /* Style des onglets principaux et d'authentification */
     .stTabs [data-baseweb="tab"] {
-
-        color: #e2e8f0 !important; /* Blanc cassé très clair au lieu de gris sombre */
-
+        color: #e2e8f0 !important;
         font-weight: 600 !important;
-
         border-bottom: 3px solid transparent !important;
-
         padding: 10px 20px !important;
-
+        background-color: transparent !important;
     }
-
-   
-
-    /* LIGNE VERTE UNIQUE ET RETOUR DU TEXTE sur l'onglet sélectionné */
-
+    
+    /* Onglet sélectionné (Ligne verte unique) */
     .stTabs [aria-selected="true"] {
-
         color: #00ffd0 !important;
-
         border-bottom: 3px solid #00ffd0 !important;
-
     }
-
-   
-
-    /* 🌟 AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
-
+    
+    /* AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
     [data-testid="stRadio"] label {
-
         color: #ffffff !important;
-
     }
-
     [data-testid="stRadio"] div[role="radiogroup"] {
-
         background-color: rgba(0, 0, 0, 0.4) !important;
-
         padding: 10px;
-
         border-radius: 8px;
-
         border: 1px solid #30363d;
-
     }
-
-   
-
-    /* Style for Forms & Cards */
-
+    
+    /* Style pour les formulaires et cartes */
     div[data-testid="stForm"] {
-
         background-color: rgba(0, 0, 0, 0.85);
-
         border: 1px solid #30363d;
-
         border-radius: 8px;
-
         padding: 25px;
-
         backdrop-filter: blur(10px);
-
     }
-
-   
-
+    
     /* Inputs Styling */
-
     .stTextInput input {
-
         background-color: #0d1117 !important;
-
         color: #ffffff !important;
-
         border: 1px solid #30363d !important;
-
     }
-
     .stTextInput input:focus {
-
         border-color: #00ffd0 !important;
-
         box-shadow: 0 0 0 1px #00ffd0 !important;
-
     }
-
-   
-
-    /* Form Submit Buttons Styling */
-
-    div[data-testid="stForm"] button {
-
+    
+    /* Style global des boutons (Formulaires et Standards) */
+    .stButton>button, div[data-testid="stForm"] button {
         width: 100% !important;
-
         border-radius: 6px !important;
-
         font-weight: 600 !important;
-
         background-color: #21262d !important;
-
-        color: #ffffff !important; /* Changé de gris à blanc pur */
-
+        color: #ffffff !important;
         border: 1px solid #30363d !important;
-
         transition: 0.2s ease !important;
-
     }
-
-    div[data-testid="stForm"] button:hover {
-
+    .stButton>button:hover, div[data-testid="stForm"] button:hover {
         background-color: #00ffd0 !important;
-
         color: #0e1117 !important;
-
         border-color: #00ffd0 !important;
-
     }
 
+    /* Style de la Sidebar */
+    .stSidebar { 
+        background: rgba(13, 14, 18, 0.84) !important; 
+        border-right: 1px solid #334155; 
+    }
 
-
-    /* Modification de la couleur de fond de la section UPLOAD */
-
+    /* Section UPLOAD */
     [data-testid="stFileUploaderDropzone"] {
-
         background-color: rgba(133, 153, 193, 0.2) !important;
-
         border-radius: 8px !important;
-
         transition: background-color 0.2s ease-in-out !important;
-
     }
-
-
-
     [data-testid="stFileUploaderDropzone"]:hover {
-
         background-color: rgba(133, 153, 193, 0.35) !important;
-
     }
-
-
-
-    /* Ajustement des textes et boutons internes de la zone d'upload */
-
     [data-testid="stFileUploaderDropzone"] span,
-
     [data-testid="stFileUploaderDropzone"] small {
-
         color: #ffffff !important;
-
     }
-
-
-
-    [data-testid="stFileUploaderDropzone"] button {
-
-        background-color: #21262d !important;
-
-        color: #ffffff !important;
-
-        border: 1px solid #30363d !important;
-
-    }
-
 </style>
-
 """
-
-st.markdown(initial_design_css, unsafe_allow_html=True)
-
-st.markdown(initial_design_css, unsafe_allow_html=True)
+# Une seule injection propre au démarrage
+st.markdown(global_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
 def load_users_from_db():
@@ -296,7 +183,7 @@ def clear_production_database():
         cur.close()
         conn.close()
 
-# --- MULTI-TABLE INJECTION FUNCTION (WITH USER ISOLATION USING EXISTING SCHEMA) ---
+# --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -317,7 +204,7 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
                 (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
             """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
-                    r['defect_count'], r['defect_points'], username, r['calculation_factor'], # 🌟 Saved 'username' into 'auditor_name'
+                    r['defect_count'], r['defect_points'], username, r['calculation_factor'],
                     r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
             audit_id_map[r['drawing_number']] = cur.fetchone()[0]
 
@@ -381,20 +268,15 @@ if not st.session_state.get("authentication_status"):
                             if cur.fetchone():
                                 st.error("This username or email is already taken.")
                             else:
-                                # 1. Insertion de l'utilisateur dans Neon
                                 cur.execute(
                                     "INSERT INTO users (username, name, password_hash, email) VALUES (%s, %s, %s, %s)",
                                     (new_username, new_name, hashed_password, new_email)
                                 )
                                 conn.commit()
-                                
-                                # 🚨 RECHARGE DYNAMIQUE : On force l'application à lire le nouvel utilisateur immédiatement
                                 updated_credentials = load_users_from_db()
                                 authenticator.credentials = updated_credentials
-                                
                                 st.success("Account created successfully! You can now log in.")
                                 st.rerun()
-                            
                             cur.close()
                             conn.close()
                         except Exception as e:
@@ -410,70 +292,18 @@ else:
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
 
-    # Application du CSS global (Garde vos styles personnalisés actifs)
-    production_design_css = """
-    <style>
-        html, body, .stApp {
-            background: linear-gradient(135deg, rgba(13, 14, 18, 0.92) 0%, rgba(22, 25, 32, 0.96) 100%),
-                        url('https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=1920') no-repeat center center fixed !important;
-            background-size: cover !important;
-            color: #ffffff !important;
-        }
-        
-        /* Forcer l'écriture blanche sur tous les composants enfants de l'espace connecté */
-        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
-            color: #ffffff !important;
-            font-weight: 500 !important;
-        }
-        
-        .stSidebar { 
-            background: rgba(13, 14, 18, 0.84) !important; 
-            border-right: 1px solid #334155; 
-        }
-        .stTabs button {
-            color: #e2e8f0 !important;
-            font-weight: 600 !important;
-            background-color: transparent !important;
-            border: none !important;
-        }
-        .stTabs button[aria-selected="true"] {
-            color: #00FFD0 !important;
-            border-bottom: 2px solid #00FFD0 !important;
-        }
-        .stButton>button {
-            width: 100%;
-            border-radius: 6px;
-            font-weight: 600;
-            background-color: rgba(30, 41, 59, 0.8) !important;
-            color: #ffffff !important;
-            border: 1px solid #475569 !important;
-        }
-        .stButton>button:hover, .stButton>button:active {
-            background-color: rgba(47, 55, 105, 0.9) !important;
-            border-color: #00FFD0 !important;
-        }
-    </style>
-    """
-    strl.markdown(production_design_css, unsafe_allow_html=True)
-    strl.markdown(production_design_css, unsafe_allow_html=True)
-
     # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
     with strl.sidebar:
-        # 1. Nom de l'entreprise (et logo si existant)
         if os.path.exists("image_609dcc.png"): 
             strl.image("image_609dcc.png", use_column_width=True)
         strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
-        
-        # 2. Message de bienvenue avec le nom d'utilisateur
         strl.markdown(f"<h3 style='text-align: center; color: #00ffd0;'>Welcome, {name}</h3>", unsafe_allow_html=True)
         strl.markdown(f"<p style='text-align: center; color: #a3a8b4;'>@{username}</p>", unsafe_allow_html=True)
         
         strl.markdown("---")
-        
-        # 3. Danger Zone et son sélecteur (Checkbox + Bouton)
         strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
@@ -485,8 +315,6 @@ else:
             except Exception as e:
                 strl.error(f"Failed to clear database: {str(e)}")
         
-        # 4. Bouton de déconnexion placé tout en bas
-        # Utilisation de petits espacements vides pour repousser proprement le bouton
         for _ in range(2):
             strl.write("")
             
@@ -497,7 +325,6 @@ else:
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
 try:
-    # On vérifie de manière stricte si la variable locale ou globale tab1 existe
     if 'tab1' in locals() or 'tab1' in globals():
         
         # --- DATA INTAKE ---
@@ -517,20 +344,17 @@ try:
                     status_text = strl.info(" Processing PDF and preparing database injection...")
                     summary, details = extract_dynamic_pdf_data(uploaded_file.read())
                     
-                    # --- 1. Extraction et formatage des données des défauts ---
                     defects = []
                     occurrences = []
                     
                     for h in details:
                         for d in h.get("raw_defects_list", []):
-                            # Ajout au registre global des défauts bruts
                             defects.append({
                                 "drawing_number": h["drawing_number"],
                                 "defect_code": d["code"],
                                 "penalty_points": d["points"]
                             })
                             
-                            # Regroupement et comptage des occurrences par code défaut
                             occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
                             if occ_found: 
                                 occ_found["total_count"] += 1
@@ -540,12 +364,8 @@ try:
                                     "total_count": 1
                                 })
 
-                    # --- 2. Insertion en Base de Données ---
-                    # 🌟 FIX COMPLETION: Ajout de l'argument 'username' requis par la définition de la fonction
                     save_to_database(summary, details, defects, occurrences, username)
                     status_text.empty()
-                    
-                    # --- 3. Finalisation et Rafraîchissement ---
                     st.session_state["injection_success"] = " Data successfully injected into all tables!"
                     strl.rerun()
                     
@@ -598,20 +418,17 @@ try:
         # --- DASHBOARD ---
         with tab3:
             strl.header("Performance Dashboard")
-            # Sub-navigation buttons inside VIEW DASHBOARD
             dashboard_subtab = strl.radio(
                 "Select View:",
                 ["Quality Class average per plant", "Defect Code Frequency & Occurrence"],
                 horizontal=True
             )
-            strl.markdown("---") # Visual separation line
+            strl.markdown("---")
             try:
                 conn = get_db_connection()
-                # --- SUB-TAB 1: Quality Class average per plant ---
                 if dashboard_subtab == "Quality Class average per plant":
                     df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
                     if not df_dash.empty:
-                        # 1. Existing Bar Chart
                         fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
                         fig.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)',
@@ -620,7 +437,6 @@ try:
                             title_font_color="#ffffff"
                         )
                         strl.plotly_chart(fig, use_container_width=True)
-                        # 2. Global QK Average Banner
                         global_qk_avg = df_dash['qk_avg'].mean()
                         strl.markdown(f"""
                         <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
@@ -631,9 +447,7 @@ try:
                     else:
                         strl.info("Dashboard awaiting production data...")
                         
-                # --- SUB-TAB 2: Defect Code Frequency & Occurrence ---
                 elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-                    # Fetch occurrence data joined with plant names
                     query_occ = """
                         SELECT s.plant, o.defect_code, o.total_count
                         FROM public.pdf_total_occurrences o
@@ -641,16 +455,13 @@ try:
                     """
                     df_occ = pd.read_sql(query_occ, conn)
                     if not df_occ.empty:
-                        # Layout layout split: Left for chart, Right for Selection panel
                         col_chart, col_select = strl.columns([3, 1])
                         with col_select:
                             strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
-                            # Unique list of available plants
                             plant_list = sorted(df_occ['plant'].unique())
                             selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
                             
                         with col_chart:
-                            # Filter the occurrence data based on selected plant
                             df_filtered = df_occ[df_occ['plant'] == selected_plant]
                             if not df_filtered.empty:
                                 fig_occ = px.bar(
@@ -679,7 +490,4 @@ try:
                 strl.error(f"Dashboard Load Error: {str(e)}")
 
 except Exception:
-    # En mettant 'Exception' à la place de 'NameError', on attrape TOUT.
-    # Si Streamlit bug pendant une demi-seconde au démarrage, il se tait
-    # et attend le prochain cycle sans rien afficher à l'utilisateur.
     pass
