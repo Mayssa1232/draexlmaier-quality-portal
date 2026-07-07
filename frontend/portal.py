@@ -26,7 +26,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
-# --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
@@ -98,9 +97,9 @@ global_design_css = """
         border-radius: 6px !important;
         font-weight: 700 !important;
         font-size: 16px !important;
-        background-color: #12161a !important; /* Couleur très foncée */
-        color: #ffffff !important;            /* Écriture blanc pur très lisible */
-        border: 1px solid #ff4b4b !important; /* Fine bordure rouge élégante */
+        background-color: #12161a !important;
+        color: #ffffff !important;
+        border: 1px solid #ff4b4b !important;
         transition: 0.2s ease !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
     }
@@ -145,7 +144,6 @@ global_design_css = """
     }
 </style>
 """
-# Une seule injection propre au démarrage
 st.markdown(global_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
@@ -336,108 +334,105 @@ else:
     # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-try:
-    if 'tab1' in locals() or 'tab1' in globals():
+    # --- DATA INTAKE ---
+    with tab1:
+        strl.header("Data Intake Portal")
         
-        # --- DATA INTAKE ---
-        with tab1 :
-            strl.header("Data Intake Portal")
-            
-            if "injection_success" in st.session_state:
-                strl.success(st.session_state["injection_success"])
-                if strl.button("Clear Notification"):
-                    del st.session_state["injection_success"]
-                    strl.rerun()
+        if "injection_success" in st.session_state:
+            strl.success(st.session_state["injection_success"])
+            if strl.button("Clear Notification"):
+                del st.session_state["injection_success"]
+                strl.rerun()
 
-            uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-            
-            if uploaded_file and strl.button(" Inject into Database"):
-                try:
-                    # Utilisation de spinner pour maintenir le message visible pendant le traitement
-                    with strl.spinner(" Processing PDF and preparing database injection..."):
-                        summary, details = extract_dynamic_pdf_data(uploaded_file.read())
-                        
-                        defects = []
-                        occurrences = []
-                        
-                        for h in details:
-                            for d in h.get("raw_defects_list", []):
-                                defects.append({
-                                    "drawing_number": h["drawing_number"],
-                                    "defect_code": d["code"],
-                                    "penalty_points": d["points"]
+        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+        
+        if uploaded_file and strl.button(" Inject into Database"):
+            try:
+                with strl.spinner(" Processing PDF and preparing database injection..."):
+                    summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                    
+                    defects = []
+                    occurrences = []
+                    
+                    for h in details:
+                        for d in h.get("raw_defects_list", []):
+                            defects.append({
+                                "drawing_number": h["drawing_number"],
+                                "defect_code": d["code"],
+                                "penalty_points": d["points"]
+                            })
+                            
+                            occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
+                            if occ_found: 
+                                occ_found["total_count"] += 1
+                            else: 
+                                occurrences.append({
+                                    "defect_code": d["code"], 
+                                    "total_count": 1
                                 })
-                                
-                                occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-                                if occ_found: 
-                                    occ_found["total_count"] += 1
-                                else: 
-                                    occurrences.append({
-                                        "defect_code": d["code"], 
-                                        "total_count": 1
-                                    })
 
-                        save_to_database(summary, details, defects, occurrences, username)
-                    
-                    # Une fois le bloc 'with' terminé, on définit le succès et on rerun
-                    st.session_state["injection_success"] = " Data successfully injected into all tables!"
-                    strl.rerun()
-                    
-                except Exception as e:
-                    strl.error(f"Injection Failed: {str(e)}")
-                    strl.exception(e)
+                    save_to_database(summary, details, defects, occurrences, username)
+                
+                st.session_state["injection_success"] = " Data successfully injected into all tables!"
+                strl.rerun()
+                
+            except Exception as e:
+                strl.error(f"Injection Failed: {str(e)}")
+                strl.exception(e)
 
-        # --- ANALYTICS REGISTER ---
-        with tab2:
-            strl.header("Quality Analytics Register")
-            # On vérifie si le rôle de l'utilisateur connecté est bien 'admin'
+    # --- ANALYTICS REGISTER ---
+    with tab2:
+        strl.header("Quality Analytics Register")
+        
+        if st.session_state.get("role") == "admin":
+            strl.success("🔓 Accès Admin accordé")
+            
             subtab1, subtab2, subtab3, subtab4 = strl.tabs([
                 "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
             ])
-            if st.session_state.get("role") == "admin":
-                strl.success("🔓 Accès Admin accordé")
 
-                try:
-                    conn = get_db_connection()
-                    with subtab1:
-                        df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-                        if not df1.empty:
-                            strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                    with subtab2:
-                        query2 = """
-                            SELECT s.plant, h.* FROM public.harness_audits h
-                            JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                        """
-                        df2 = pd.read_sql(query2, conn)
-                        if not df2.empty:
-                            strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-                    with subtab3:
-                        query3 = """
-                            SELECT s.plant, d.* FROM public.audit_defects_raw d
-                            JOIN public.harness_audits h ON d.audit_id = h.audit_id
-                            JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                        """
-                        df3 = pd.read_sql(query3, conn)
-                        if not df3.empty:
-                            strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-                    with subtab4:
-                        query4 = """
-                            SELECT s.plant, o.* FROM public.pdf_total_occurrences o
-                            JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                        """
-                        df4 = pd.read_sql(query4, conn)
-                        if not df4.empty:
-                            strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                    conn.close()
-                except Exception as e:
-                    strl.error(f"Error loading registers: {str(e)}")
-            else:
-                # Ce message s'affichera uniquement pour les utilisateurs standards ('user')
-                strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
-                        
-        # --- DASHBOARD ---
-        with tab3:
-            strl.header("Performance Dashboard")
+            try:
+                conn = get_db_connection()
+                with subtab1:
+                    df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                    if not df1.empty:
+                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                with subtab2:
+                    query2 = """
+                        SELECT s.plant, h.* FROM public.harness_audits h
+                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                    """
+                    df2 = pd.read_sql(query2, conn)
+                    if not df2.empty:
+                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+                with subtab3:
+                    query3 = """
+                        SELECT s.plant, d.* FROM public.audit_defects_raw d
+                        JOIN public.harness_audits h ON d.audit_id = h.audit_id
+                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                    """
+                    df3 = pd.read_sql(query3, conn)
+                    if not df3.empty:
+                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+                with subtab4:
+                    query4 = """
+                        SELECT s.plant, o.* FROM public.pdf_total_occurrences o
+                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                    """
+                    df4 = pd.read_sql(query4, conn)
+                    if not df4.empty:
+                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                conn.close()
+            except Exception as e:
+                strl.error(f"Error loading registers: {str(e)}")
+        else:
+            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
+                    
+    # --- DASHBOARD ---
+    with tab3:
+        strl.header("Performance Dashboard")
+        
+        if st.session_state.get("role") == "admin":
             dashboard_subtab = strl.radio(
                 "Select View:",
                 ["Quality Class average per plant", "Defect Code Frequency & Occurrence"],
@@ -508,6 +503,5 @@ try:
                 conn.close()
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
-
-except Exception:
-    pass
+        else:
+            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
