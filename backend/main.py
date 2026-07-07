@@ -319,10 +319,9 @@ else:
         
         strl.markdown("---")
         strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
-        confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
         if st.session_state.get("role") == "admin":
-            confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
+            confirm_wipe = strl.checkbox("I understand this will erase all quality logs", key="admin_sidebar_wipe_checkbox")
             
             if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
                 try:
