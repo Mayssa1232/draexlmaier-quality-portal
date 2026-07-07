@@ -152,13 +152,15 @@ def load_users_from_db():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT username, name, password_hash, email FROM users;")
+        # AJOUT DE 'role' DANS LA REQUÊTE SQL
+        cur.execute("SELECT username, name, password_hash, email, role FROM users;")
         rows = cur.fetchall()
         for row in rows:
             credentials["usernames"][row["username"]] = {
                 "name": row["name"],
                 "password": row["password_hash"],
-                "email": row["email"]
+                "email": row["email"],
+                "role": row.get("role", "user") # On stocke le rôle ici
             }
         cur.close()
         conn.close()
@@ -299,9 +301,11 @@ else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
+    # 🌟 AJOUTE CETTE LIGNE ICI POUR ACTIVER LE RÔLE ADMIN 🌟
+    st.session_state["role"] = credentials['usernames'][username].get('role', 'user')
+    
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
-
     # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
     with strl.sidebar:
         if os.path.exists("image_609dcc.png"): 
