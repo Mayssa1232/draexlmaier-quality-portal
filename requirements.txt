@@ -1,6 +1,5 @@
 streamlit
 pandas
 plotly
-psycopg2-binary
-PyMuPDF
 streamlit-authenticator
+psycopg2-binary
