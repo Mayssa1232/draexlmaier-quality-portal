@@ -353,31 +353,33 @@ try:
             
             if uploaded_file and strl.button(" Inject into Database"):
                 try:
-                    status_text = strl.info(" Processing PDF and preparing database injection...")
-                    summary, details = extract_dynamic_pdf_data(uploaded_file.read())
-                    
-                    defects = []
-                    occurrences = []
-                    
-                    for h in details:
-                        for d in h.get("raw_defects_list", []):
-                            defects.append({
-                                "drawing_number": h["drawing_number"],
-                                "defect_code": d["code"],
-                                "penalty_points": d["points"]
-                            })
-                            
-                            occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-                            if occ_found: 
-                                occ_found["total_count"] += 1
-                            else: 
-                                occurrences.append({
-                                    "defect_code": d["code"], 
-                                    "total_count": 1
+                    # Utilisation de spinner pour maintenir le message visible pendant le traitement
+                    with strl.spinner(" Processing PDF and preparing database injection..."):
+                        summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                        
+                        defects = []
+                        occurrences = []
+                        
+                        for h in details:
+                            for d in h.get("raw_defects_list", []):
+                                defects.append({
+                                    "drawing_number": h["drawing_number"],
+                                    "defect_code": d["code"],
+                                    "penalty_points": d["points"]
                                 })
+                                
+                                occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
+                                if occ_found: 
+                                    occ_found["total_count"] += 1
+                                else: 
+                                    occurrences.append({
+                                        "defect_code": d["code"], 
+                                        "total_count": 1
+                                    })
 
-                    save_to_database(summary, details, defects, occurrences, username)
-                    status_text.empty()
+                        save_to_database(summary, details, defects, occurrences, username)
+                    
+                    # Une fois le bloc 'with' terminé, on définit le succès et on rerun
                     st.session_state["injection_success"] = " Data successfully injected into all tables!"
                     strl.rerun()
                     
