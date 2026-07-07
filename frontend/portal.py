@@ -26,7 +26,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
-# --- BLOC_CSS_ULTIME_INJECTÉ ---
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
 <style>
@@ -45,55 +44,44 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /*--- CONSERVATION DE LA LIGNE ROUGE NATIVE ---*/
-    /* On s'assure que la ligne rouge native s'affiche correctement sans interférence */
+    /* CONSERVATION DE LA LIGNE ROUGE NATIVE */
     .stTabs [data-baseweb="tab-highlight"],
     [data-testid="stActiveTabIndicator"] {
-        background-color: #ff4b4b !important; /* Rouge natif de Streamlit */
+        background-color: #ff4b4b !important;
         display: block !important;
         height: 3px !important;
     }
 
-    /* Style des onglets (On supprime complètement la bordure verte ici) */
+    /* Style des onglets principaux (Pas de ligne verte) */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
-        border-bottom: none !important; /* PLUS DE LIGNE VERTE */
+        border-bottom: none !important;
         padding: 10px 20px !important;
         background-color: transparent !important;
         box-shadow: none !important;
     }
     
-    /* Onglet sélectionné (Texte en rouge pour s'accorder avec la ligne) */
+    /* Onglet sélectionné */
     .stTabs [aria-selected="true"] {
         color: #ff4b4b !important;
-        border-bottom: none !important; /* PLUS DE LIGNE VERTE */
+        border-bottom: none !important;
         background-color: transparent !important;
     }
     
-    /* AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
-    [data-testid="stRadio"] label {
-        color: #ffffff !important;
-    }
-    [data-testid="stRadio"] div[role="radiogroup"] {
-        background-color: rgba(0, 0, 0, 0.4) !important;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #30363d;
-    }
-    
-    /* Style pour les formulaires et cartes */
-    div[data-testid="stForm"] {
-        background-color: rgba(0, 0, 0, 0.85);
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 25px;
-        backdrop-filter: blur(10px);
+    /* MODIFICATION DU BLOC : NOIR TRANSPARENT ET FLOU DE FOND */
+    div[data-testid="stForm"], [data-testid="stForm"] {
+        background-color: rgba(0, 0, 0, 0.65) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        padding: 30px !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
     }
     
     /* Inputs Styling */
     .stTextInput input {
-        background-color: #0d1117 !important;
+        background-color: rgba(13, 17, 23, 0.8) !important;
         color: #ffffff !important;
         border: 1px solid #30363d !important;
     }
@@ -102,24 +90,26 @@ global_design_css = """
         box-shadow: 0 0 0 1px #ff4b4b !important;
     }
     
-    /* --- CORRECTION DES BOUTONS (POUR EVITER DE DEFORMER L'OEIL) --- */
-    /* On applique le style 100% uniquement aux vrais boutons de soumission du formulaire */
+    /* MODIFICATION DES BOUTONS : FONCÉS POUR S'ACCORDER AVEC LE TEXTE BLANC */
     .stButton>button,
     div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
         width: 100% !important;
+        height: 45px !important;
         border-radius: 6px !important;
-        font-weight: 600 !important;
-        background-color: #21262d !important;
-        color: #ffffff !important;
-        border: 1px solid #30363d !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        background-color: #12161a !important; /* Couleur très foncée */
+        color: #ffffff !important;            /* Écriture blanc pur très lisible */
+        border: 1px solid #ff4b4b !important; /* Fine bordure rouge élégante */
         transition: 0.2s ease !important;
-        height: auto !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
     }
     .stButton>button:hover,
     div[data-testid="stForm"] button[data-testid="baseButton-secondary"]:hover {
         background-color: #ff4b4b !important;
         color: #ffffff !important;
         border-color: #ff4b4b !important;
+        cursor: pointer;
     }
 
     /* NEUTRALISATION DU BOUTON DE L'ŒIL DU MOT DE PASSE */
