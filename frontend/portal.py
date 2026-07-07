@@ -390,45 +390,51 @@ try:
         # --- ANALYTICS REGISTER ---
         with tab2:
             strl.header("Quality Analytics Register")
+            # On vérifie si le rôle de l'utilisateur connecté est bien 'admin'
             subtab1, subtab2, subtab3, subtab4 = strl.tabs([
                 "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
             ])
+            if st.session_state.get("role") == "admin":
+                strl.success("🔓 Accès Admin accordé")
 
-            try:
-                conn = get_db_connection()
-                with subtab1:
-                    df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-                    if not df1.empty:
-                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                with subtab2:
-                    query2 = """
-                        SELECT s.plant, h.* FROM public.harness_audits h
-                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                    """
-                    df2 = pd.read_sql(query2, conn)
-                    if not df2.empty:
-                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-                with subtab3:
-                    query3 = """
-                        SELECT s.plant, d.* FROM public.audit_defects_raw d
-                        JOIN public.harness_audits h ON d.audit_id = h.audit_id
-                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                    """
-                    df3 = pd.read_sql(query3, conn)
-                    if not df3.empty:
-                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-                with subtab4:
-                    query4 = """
-                        SELECT s.plant, o.* FROM public.pdf_total_occurrences o
-                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                    """
-                    df4 = pd.read_sql(query4, conn)
-                    if not df4.empty:
-                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                conn.close()
-            except Exception as e:
-                strl.error(f"Error loading registers: {str(e)}")
-                
+                try:
+                    conn = get_db_connection()
+                    with subtab1:
+                        df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                        if not df1.empty:
+                            strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                    with subtab2:
+                        query2 = """
+                            SELECT s.plant, h.* FROM public.harness_audits h
+                            JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                        """
+                        df2 = pd.read_sql(query2, conn)
+                        if not df2.empty:
+                            strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+                    with subtab3:
+                        query3 = """
+                            SELECT s.plant, d.* FROM public.audit_defects_raw d
+                            JOIN public.harness_audits h ON d.audit_id = h.audit_id
+                            JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
+                        """
+                        df3 = pd.read_sql(query3, conn)
+                        if not df3.empty:
+                            strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+                    with subtab4:
+                        query4 = """
+                            SELECT s.plant, o.* FROM public.pdf_total_occurrences o
+                            JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                        """
+                        df4 = pd.read_sql(query4, conn)
+                        if not df4.empty:
+                            strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                    conn.close()
+                except Exception as e:
+                    strl.error(f"Error loading registers: {str(e)}")
+            else:
+                # Ce message s'affichera uniquement pour les utilisateurs standards ('user')
+                strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
+                        
         # --- DASHBOARD ---
         with tab3:
             strl.header("Performance Dashboard")
