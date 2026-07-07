@@ -43,102 +43,98 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* FIX DOUBLE LIGNE EXTRÊME : On supprime toutes les bordures et soulignements par défaut */
-    .stTabs [data-baseweb="tab-list"], 
-    .stTabs [role="tablist"] {
-        border-bottom: none !important;
-        box-shadow: none !important;
-    }
-    .stTabs [data-baseweb="tab-highlight"], 
-    .stTabs [role="tablist"]::after,
-    .stTabs div[style*="background-color: rgb(255, 75, 75)"] {
-        background-color: transparent !important;
-        display: none !important;
-        height: 0px !important;
+    /* CONSERVATION DE LA LIGNE ROUGE NATIVE */
+    .stTabs [data-baseweb="tab-highlight"],
+    [data-testid="stActiveTabIndicator"] {
+        background-color: #ff4b4b !important;
+        display: block !important;
+        height: 3px !important;
     }
 
-    /* Style des onglets principaux et d'authentification */
+    /* Style des onglets principaux (Pas de ligne verte) */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
-        border-bottom: 3px solid transparent !important;
+        border-bottom: none !important;
         padding: 10px 20px !important;
         background-color: transparent !important;
         box-shadow: none !important;
     }
     
-    /* Onglet sélectionné (Ligne verte unique) */
+    /* Onglet sélectionné */
     .stTabs [aria-selected="true"] {
-        color: #00ffd0 !important;
-        border-bottom: 3px solid #00ffd0 !important;
+        color: #ff4b4b !important;
+        border-bottom: none !important;
+        background-color: transparent !important;
     }
     
-    /* AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
-    [data-testid="stRadio"] label {
-        color: #ffffff !important;
-    }
-    [data-testid="stRadio"] div[role="radiogroup"] {
-        background-color: rgba(0, 0, 0, 0.4) !important;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #30363d;
-    }
-    
-    /* Style pour les formulaires et cartes */
-    div[data-testid="stForm"] {
-        background-color: rgba(0, 0, 0, 0.85);
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 25px;
-        backdrop-filter: blur(10px);
+    /* MODIFICATION DU BLOC : NOIR TRANSPARENT ET FLOU DE FOND */
+    div[data-testid="stForm"], [data-testid="stForm"] {
+        background-color: rgba(0, 0, 0, 0.65) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        padding: 30px !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
     }
     
     /* Inputs Styling */
     .stTextInput input {
-        background-color: #0d1117 !important;
+        background-color: rgba(13, 17, 23, 0.8) !important;
         color: #ffffff !important;
         border: 1px solid #30363d !important;
     }
     .stTextInput input:focus {
-        border-color: #00ffd0 !important;
-        box-shadow: 0 0 0 1px #00ffd0 !important;
+        border-color: #ff4b4b !important;
+        box-shadow: 0 0 0 1px #ff4b4b !important;
     }
     
-    /* Style global des boutons (Formulaires et Standards) */
-    .stButton>button, div[data-testid="stForm"] button {
+    /* MODIFICATION DES BOUTONS : FONCÉS POUR S'ACCORDER AVEC LE TEXTE BLANC */
+    .stButton>button,
+    div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
         width: 100% !important;
+        height: 45px !important;
         border-radius: 6px !important;
-        font-weight: 600 !important;
-        background-color: #21262d !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        background-color: #12161a !important;
         color: #ffffff !important;
-        border: 1px solid #30363d !important;
+        border: 1px solid #ff4b4b !important;
         transition: 0.2s ease !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
     }
-    .stButton>button:hover, div[data-testid="stForm"] button:hover {
-        background-color: #00ffd0 !important;
-        color: #0e1117 !important;
-        border-color: #00ffd0 !important;
+    .stButton>button:hover,
+    div[data-testid="stForm"] button[data-testid="baseButton-secondary"]:hover {
+        background-color: #ff4b4b !important;
+        color: #ffffff !important;
+        border-color: #ff4b4b !important;
+        cursor: pointer;
     }
 
-    /* FIX EXTRÊME MOT DE PASSE : On cible spécifiquement le bouton d'œil à l'intérieur de l'input */
+    /* NEUTRALISATION DU BOUTON DE L'ŒIL DU MOT DE PASSE */
+    .stTextInput button,
     .stTextInput div[data-testid="InputWithAdornment"] button,
-    .stTextInput button[property="password-visibility"],
-    .stApp div[role="presentation"] button {
-        width: 40px !important;
-        height: 40px !important;
-        max-width: 40px !important;
+    .stTextInput button[property="password-visibility"] {
+        width: 32px !important;
+        max-width: 32px !important;
+        min-width: 32px !important;
+        height: 32px !important;
         background-color: transparent !important;
+        background: transparent !important;
         border: none !important;
-        margin: 0 !important;
+        box-shadow: none !important;
         padding: 0 !important;
+        margin: 0 !important;
         position: absolute !important;
-        right: 5px !important;
-        top: 0% !important;
+        right: 8px !important;
+        top: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
-    .stTextInput div[data-testid="InputWithAdornment"] button:hover,
-    .stTextInput button[property="password-visibility"]:hover {
-        background-color: transparent !important;
-        color: #00ffd0 !important;
+    .stTextInput button:hover {
+        background: transparent !important;
+        color: #ff4b4b !important;
     }
 
     /* Style de la Sidebar */
@@ -146,23 +142,8 @@ global_design_css = """
         background: rgba(13, 14, 18, 0.84) !important; 
         border-right: 1px solid #334155; 
     }
-
-    /* Section UPLOAD */
-    [data-testid="stFileUploaderDropzone"] {
-        background-color: rgba(133, 153, 193, 0.2) !important;
-        border-radius: 8px !important;
-        transition: background-color 0.2s ease-in-out !important;
-    }
-    [data-testid="stFileUploaderDropzone"]:hover {
-        background-color: rgba(133, 153, 193, 0.35) !important;
-    }
-    [data-testid="stFileUploaderDropzone"] span,
-    [data-testid="stFileUploaderDropzone"] small {
-        color: #ffffff !important;
-    }
 </style>
 """
-# Une seule injection propre au démarrage
 st.markdown(global_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
@@ -353,24 +334,21 @@ else:
     # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-try:
-    if 'tab1' in locals() or 'tab1' in globals():
+    # --- DATA INTAKE ---
+    with tab1:
+        strl.header("Data Intake Portal")
         
-        # --- DATA INTAKE ---
-        with tab1 :
-            strl.header("Data Intake Portal")
-            
-            if "injection_success" in st.session_state:
-                strl.success(st.session_state["injection_success"])
-                if strl.button("Clear Notification"):
-                    del st.session_state["injection_success"]
-                    strl.rerun()
+        if "injection_success" in st.session_state:
+            strl.success(st.session_state["injection_success"])
+            if strl.button("Clear Notification"):
+                del st.session_state["injection_success"]
+                strl.rerun()
 
-            uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-            
-            if uploaded_file and strl.button(" Inject into Database"):
-                try:
-                    status_text = strl.info(" Processing PDF and preparing database injection...")
+        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+        
+        if uploaded_file and strl.button(" Inject into Database"):
+            try:
+                with strl.spinner(" Processing PDF and preparing database injection..."):
                     summary, details = extract_dynamic_pdf_data(uploaded_file.read())
                     
                     defects = []
@@ -394,17 +372,21 @@ try:
                                 })
 
                     save_to_database(summary, details, defects, occurrences, username)
-                    status_text.empty()
-                    st.session_state["injection_success"] = " Data successfully injected into all tables!"
-                    strl.rerun()
-                    
-                except Exception as e:
-                    strl.error(f"Injection Failed: {str(e)}")
-                    strl.exception(e)
+                
+                st.session_state["injection_success"] = " Data successfully injected into all tables!"
+                strl.rerun()
+                
+            except Exception as e:
+                strl.error(f"Injection Failed: {str(e)}")
+                strl.exception(e)
 
-        # --- ANALYTICS REGISTER ---
-        with tab2:
-            strl.header("Quality Analytics Register")
+    # --- ANALYTICS REGISTER ---
+    with tab2:
+        strl.header("Quality Analytics Register")
+        
+        if st.session_state.get("role") == "admin":
+            strl.success("🔓 Accès Admin accordé")
+            
             subtab1, subtab2, subtab3, subtab4 = strl.tabs([
                 "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
             ])
@@ -443,10 +425,14 @@ try:
                 conn.close()
             except Exception as e:
                 strl.error(f"Error loading registers: {str(e)}")
-                
-        # --- DASHBOARD ---
-        with tab3:
-            strl.header("Performance Dashboard")
+        else:
+            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
+                    
+    # --- DASHBOARD ---
+    with tab3:
+        strl.header("Performance Dashboard")
+        
+        if st.session_state.get("role") == "admin":
             dashboard_subtab = strl.radio(
                 "Select View:",
                 ["Quality Class average per plant", "Defect Code Frequency & Occurrence"],
@@ -517,6 +503,5 @@ try:
                 conn.close()
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
-
-except Exception:
-    pass
+        else:
+            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
