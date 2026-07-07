@@ -321,13 +321,19 @@ else:
         strl.markdown("<h4 style='color: #ff4b4b; margin-bottom: 5px;'>⚠️ Danger Zone</h4>", unsafe_allow_html=True)
         confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
         
-        if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
-            try:
-                clear_production_database()
-                strl.success(" Database successfully cleared!")
-                strl.rerun()
-            except Exception as e:
-                strl.error(f"Failed to clear database: {str(e)}")
+        if st.session_state.get("role") == "admin":
+            confirm_wipe = strl.checkbox("I understand this will erase all quality logs")
+            
+            if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
+                try:
+                    clear_production_database()
+                    strl.success(" Database successfully cleared!")
+                    strl.rerun()
+                except Exception as e:
+                    strl.error(f"Failed to clear database: {str(e)}")
+        else:
+            # Message d'avertissement si l'utilisateur connecté n'est pas admin
+            strl.warning("🔒 Actions réservées aux administrateurs.")
         
         for _ in range(2):
             strl.write("")
