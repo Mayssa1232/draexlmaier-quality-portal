@@ -43,10 +43,16 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* Masquer l'indicateur rouge par défaut de Streamlit */
-    [data-testid="stBaseButton-inline"], 
-    [data-baseweb="tab-highlight"] {
+    /* FIX DOUBLE LIGNE : On supprime la ligne rouge/grise par défaut de la bordure des onglets */
+    .stTabs [data-baseweb="tab-list"] {
+        border-bottom: none !important;
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
         background-color: transparent !important;
+        display: none !important;
+    }
+    /* Version récente de Streamlit */
+    .stTabs [role="tablist"]::after {
         display: none !important;
     }
 
@@ -110,6 +116,20 @@ global_design_css = """
         background-color: #00ffd0 !important;
         color: #0e1117 !important;
         border-color: #00ffd0 !important;
+    }
+
+    /* FIX VISUALISATION MOT DE PASSE : On empêche le bouton d'œil de faire 100% de large */
+    .stTextInput button[property="password-visibility"],
+    .stTextInput div[data-testid="InputWithAdornment"] button {
+        width: auto !important;
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 10px !important;
+    }
+    .stTextInput button[property="password-visibility"]:hover,
+    .stTextInput div[data-testid="InputWithAdornment"] button:hover {
+        background-color: transparent !important;
+        color: #00ffd0 !important;
     }
 
     /* Style de la Sidebar */
