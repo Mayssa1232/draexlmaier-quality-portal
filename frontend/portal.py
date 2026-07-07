@@ -26,6 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'b
 from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
+# --- BLOC_CSS_ULTIME_INJECTÉ ---
 global_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
@@ -36,52 +37,43 @@ global_design_css = """
         color: #ffffff !important;
     }
     
-    /* FORCE ALL TEXTS, LABELS, MARGINS & LEGENDS TO WHITE */
+    /* FORCE ALL TEXTS TO WHITE */
     .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, [data-testid="stWidgetLabel"] p {
         color: #ffffff !important;
         font-weight: 500 !important;
-        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* FIX DOUBLE LIGNE EXTRÊME : On supprime toutes les bordures et soulignements par défaut */
-    .stTabs [data-baseweb="tab-list"], 
-    .stTabs [role="tablist"] {
-        border-bottom: none !important;
-        box-shadow: none !important;
-    }
-    .stTabs [data-baseweb="tab-highlight"], 
-    .stTabs [role="tablist"]::after,
-    .stTabs div[style*="background-color: rgb(255, 75, 75)"] {
+    /* MASQUAGE DE TOUTES LES LIGNES D'ONGLETS NATIVES (Horizontales et Rouges) */
+    [data-baseweb="tab-highlight"], 
+    [role="tablist"]::after, 
+    .stTabs hr,
+    [data-testid="stActiveTabIndicator"] {
         background-color: transparent !important;
         display: none !important;
         height: 0px !important;
+        opacity: 0 !important;
     }
 
-    /* Style des onglets principaux et d'authentification */
+    /* Nettoyage des bordures de la liste d'onglets */
+    .stTabs [data-baseweb="tab-list"], .stTabs [role="tablist"] {
+        border-bottom: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    /* Style des onglets principaux */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
         border-bottom: 3px solid transparent !important;
         padding: 10px 20px !important;
         background-color: transparent !important;
-        box-shadow: none !important;
     }
     
-    /* Onglet sélectionné (Ligne verte unique) */
-    .stTabs [aria-selected="true"] {
+    /* Onglet sélectionné : Ta ligne verte unique */
+    .stTabs [aria-selected="true"], .stTabs [data-baseweb="tab"][aria-selected="true"] {
         color: #00ffd0 !important;
         border-bottom: 3px solid #00ffd0 !important;
-    }
-    
-    /* AMÉLIORATION DES BOUTONS RADIO (SUB-TABS) */
-    [data-testid="stRadio"] label {
-        color: #ffffff !important;
-    }
-    [data-testid="stRadio"] div[role="radiogroup"] {
-        background-color: rgba(0, 0, 0, 0.4) !important;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #30363d;
     }
     
     /* Style pour les formulaires et cartes */
@@ -90,7 +82,6 @@ global_design_css = """
         border: 1px solid #30363d;
         border-radius: 8px;
         padding: 25px;
-        backdrop-filter: blur(10px);
     }
     
     /* Inputs Styling */
@@ -99,68 +90,62 @@ global_design_css = """
         color: #ffffff !important;
         border: 1px solid #30363d !important;
     }
-    .stTextInput input:focus {
-        border-color: #00ffd0 !important;
-        box-shadow: 0 0 0 1px #00ffd0 !important;
-    }
     
-    /* Style global des boutons (Formulaires et Standards) */
-    .stButton>button, div[data-testid="stForm"] button {
+    /* Style global exclusif des VRAIS boutons (Pas l'œil) */
+    .stButton>button, 
+    div[data-testid="stForm"] button:not([aria-label*="password"]):not([property="password-visibility"]):not([data-testid*="Input"]) {
         width: 100% !important;
         border-radius: 6px !important;
         font-weight: 600 !important;
         background-color: #21262d !important;
         color: #ffffff !important;
         border: 1px solid #30363d !important;
-        transition: 0.2s ease !important;
     }
-    .stButton>button:hover, div[data-testid="stForm"] button:hover {
+    .stButton>button:hover,
+    div[data-testid="stForm"] button:not([aria-label*="password"]):not([property="password-visibility"]):not([data-testid*="Input"]):hover {
         background-color: #00ffd0 !important;
         color: #0e1117 !important;
-        border-color: #00ffd0 !important;
     }
 
-    /* FIX EXTRÊME MOT DE PASSE : On cible spécifiquement le bouton d'œil à l'intérieur de l'input */
+    /* CORRECTION RADICALE DE L'ŒIL */
     .stTextInput div[data-testid="InputWithAdornment"] button,
     .stTextInput button[property="password-visibility"],
-    .stApp div[role="presentation"] button {
-        width: 40px !important;
-        height: 40px !important;
-        max-width: 40px !important;
+    .stTextInput button {
+        width: 35px !important;
+        max-width: 35px !important;
+        height: 35px !important;
+        background: transparent !important;
         background-color: transparent !important;
         border: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        box-shadow: none !important;
         position: absolute !important;
         right: 5px !important;
-        top: 0% !important;
-    }
-    .stTextInput div[data-testid="InputWithAdornment"] button:hover,
-    .stTextInput button[property="password-visibility"]:hover {
-        background-color: transparent !important;
-        color: #00ffd0 !important;
-    }
-
-    /* Style de la Sidebar */
-    .stSidebar { 
-        background: rgba(13, 14, 18, 0.84) !important; 
-        border-right: 1px solid #334155; 
-    }
-
-    /* Section UPLOAD */
-    [data-testid="stFileUploaderDropzone"] {
-        background-color: rgba(133, 153, 193, 0.2) !important;
-        border-radius: 8px !important;
-        transition: background-color 0.2s ease-in-out !important;
-    }
-    [data-testid="stFileUploaderDropzone"]:hover {
-        background-color: rgba(133, 153, 193, 0.35) !important;
-    }
-    [data-testid="stFileUploaderDropzone"] span,
-    [data-testid="stFileUploaderDropzone"] small {
-        color: #ffffff !important;
+        top: 2px !important;
     }
 </style>
+
+<script>
+    // Ce script s'exécute en boucle en arrière-plan pour détruire la ligne rouge dès qu'elle apparaît
+    setInterval(function() {
+        // 1. On cherche l'indicateur rouge de Streamlit et on le supprime
+        var indicators = window.parent.document.querySelectorAll('[data-testid="stActiveTabIndicator"], [data-baseweb="tab-highlight"]');
+        indicators.forEach(function(el) {
+            el.style.backgroundColor = 'transparent';
+            el.style.display = 'none';
+        });
+        
+        // 2. On répare l'œil du mot de passe dans le DOM parent si nécessaire
+        var eyeButtons = window.parent.document.querySelectorAll('.stTextInput button');
+        eyeButtons.forEach(function(btn) {
+            if(btn.innerText === "" || btn.querySelector('svg')) {
+                btn.style.width = '35px';
+                btn.style.position = 'absolute';
+                btn.style.right = '5px';
+                btn.style.background = 'transparent';
+            }
+        });
+    }, 300);
+</script>
 """
 # Une seule injection propre au démarrage
 st.markdown(global_design_css, unsafe_allow_html=True)
