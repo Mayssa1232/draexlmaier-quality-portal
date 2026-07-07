@@ -43,26 +43,28 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* FIX DOUBLE LIGNE : On supprime la ligne rouge/grise par défaut de la bordure des onglets */
-    .stTabs [data-baseweb="tab-list"] {
+    /* FIX DOUBLE LIGNE EXTRÊME : On supprime toutes les bordures et soulignements par défaut */
+    .stTabs [data-baseweb="tab-list"], 
+    .stTabs [role="tablist"] {
         border-bottom: none !important;
+        box-shadow: none !important;
     }
-    .stTabs [data-baseweb="tab-highlight"] {
+    .stTabs [data-baseweb="tab-highlight"], 
+    .stTabs [role="tablist"]::after,
+    .stTabs div[style*="background-color: rgb(255, 75, 75)"] {
         background-color: transparent !important;
         display: none !important;
-    }
-    /* Version récente de Streamlit */
-    .stTabs [role="tablist"]::after {
-        display: none !important;
+        height: 0px !important;
     }
 
     /* Style des onglets principaux et d'authentification */
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
         border-bottom: 3px solid transparent !important;
         padding: 10px 20px !important;
         background-color: transparent !important;
+        box-shadow: none !important;
     }
     
     /* Onglet sélectionné (Ligne verte unique) */
@@ -118,16 +120,23 @@ global_design_css = """
         border-color: #00ffd0 !important;
     }
 
-    /* FIX VISUALISATION MOT DE PASSE : On empêche le bouton d'œil de faire 100% de large */
+    /* FIX EXTRÊME MOT DE PASSE : On cible spécifiquement le bouton d'œil à l'intérieur de l'input */
+    .stTextInput div[data-testid="InputWithAdornment"] button,
     .stTextInput button[property="password-visibility"],
-    .stTextInput div[data-testid="InputWithAdornment"] button {
-        width: auto !important;
+    .stApp div[role="presentation"] button {
+        width: 40px !important;
+        height: 40px !important;
+        max-width: 40px !important;
         background-color: transparent !important;
         border: none !important;
-        padding: 0 10px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        position: absolute !important;
+        right: 5px !important;
+        top: 0% !important;
     }
-    .stTextInput button[property="password-visibility"]:hover,
-    .stTextInput div[data-testid="InputWithAdornment"] button:hover {
+    .stTextInput div[data-testid="InputWithAdornment"] button:hover,
+    .stTextInput button[property="password-visibility"]:hover {
         background-color: transparent !important;
         color: #00ffd0 !important;
     }
