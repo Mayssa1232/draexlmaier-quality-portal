@@ -44,50 +44,46 @@ def clean_json_response(raw_text):
         return raw_text
 
 def parse_defects_with_python(page_text):
-    """Analyse le texte pour extraire le code défaut uniquement s'il se trouve 
-    dans la zone du tableau sous l'en-tête 'defect code' ou 'Fehler Code'."""
+    """Analyse le texte pour extraire les vrais codes défauts en se basant
+    sur la présence obligatoire de la catégorie de défaut (F, S, K, L) juste après."""
     defects_list = []
     
-    # Pattern flexible pour l'emplacement (tolère plusieurs espaces entre les mots)
-    location_pattern = re.compile(r'defect\s*code|fehler\s*code', re.IGNORECASE)
-    
-    # Pattern pour capturer le code (ex: 2D, 1H, 3.1.1G)
+    # 1. On cherche un format de code (ex: 2D, 1H, 3.1.1G)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
     
+    # Les catégories de défauts officielles VW/Draexlmaier (F=Fertigung, S=Schadhaft, etc.)
+    VALID_CATEGORIES = {'F', 'S', 'K', 'L'}
+    
     lines = page_text.split('\n')
-    in_defect_table = False
     
     for idx, line in enumerate(lines):
-        clean_line = line.strip()
-        
-        # 1. On repère l'emplacement de manière flexible
-        if location_pattern.search(clean_line):
-            in_defect_table = True
-            continue  # On passe à la ligne suivante pour lire le code
-            
-        # 2. Si on est dans la bonne zone, on cherche le premier code valide
-        if in_defect_table:
-            matches = defect_pattern.findall(line)
-            if matches:
-                code = matches[0]
+        matches = defect_pattern.findall(line)
+        if matches:
+            for code in matches:
+                is_valid_defect = False
                 points = 0
                 
-                # Extraction des points associés sur les lignes suivantes
-                for offset in range(1, 5):
+                # 2. Sécurité : On regarde les 3 lignes suivantes
+                # Le vrai code défaut est TOUJOURS suivi de sa catégorie (F, S, K, L) PUIS de ses points.
+                for offset in range(1, 4):
                     if idx + offset < len(lines):
                         next_line = lines[idx + offset].strip()
-                        if next_line.isdigit():
+                        
+                        # Si on trouve la catégorie de défaut (F, S, K, L)
+                        if next_line in VALID_CATEGORIES:
+                            is_valid_defect = True
+                            
+                        # Si on trouve les points (ex: 75, 100, 200)
+                        elif next_line.isdigit():
                             val_points = int(next_line)
                             if val_points > 0:
                                 points = val_points
-                                break
-                                
-                defects_list.append({"code": code, "points": points})
                 
-                # 3. Sécurité : Une fois le vrai code extrait sous l'en-tête, 
-                # on désactive le drapeau pour éviter de capturer du bruit plus bas
-                in_defect_table = False 
-                
+                # Si le code est bien accompagné d'une catégorie valide, on l'enregistre !
+                if is_valid_defect:
+                    defects_list.append({"code": code, "points": points})
+                    break # On passe à la ligne suivante
+                    
     return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
