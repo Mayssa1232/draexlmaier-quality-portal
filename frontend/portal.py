@@ -152,7 +152,6 @@ def load_users_from_db():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # AJOUT DE 'role' DANS LA REQUÊTE SQL
         cur.execute("SELECT username, name, password_hash, email, role FROM users;")
         rows = cur.fetchall()
         for row in rows:
@@ -160,7 +159,7 @@ def load_users_from_db():
                 "name": row["name"],
                 "password": row["password_hash"],
                 "email": row["email"],
-                "role": row.get("role", "user") # On stocke le rôle ici
+                "role": row.get("role", "user")
             }
         cur.close()
         conn.close()
@@ -232,7 +231,6 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
             ))
             generated_id = cur.fetchone()[0]
             
-            # On utilise une liste d'IDs au cas où le même dessin apparaît plusieurs fois
             dn = r.get('drawing_number')
             if dn:
                 if dn not in audit_id_map:
@@ -241,18 +239,13 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
 
         for d in defects_list:
             dn_defect = d.get('drawing_number')
-            # Sécurité : On vérifie que le drawing_number existe bien dans la map
             if dn_defect in audit_id_map:
-                # On associe le défaut au premier ID disponible ou au plus récent
                 target_audit_id = audit_id_map[dn_defect][0] 
                 
                 cur.execute("""
                     INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
                     VALUES (%s, %s, %s);
                 """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
-            else:
-                # Optionnel : loguer ou afficher une alerte discrète si un défaut est orphelin
-                pass
 
         for o in occurrences_list:
             cur.execute("""
@@ -326,19 +319,15 @@ if not st.session_state.get("authentication_status"):
                         except Exception as e:
                             st.error(f"Registration failed: {e}")
 
-# =========================================================================
-# --- SECURE WORKSPACE AREA (ALL EMBEDDED UNDER CONNECTED STATE) ---
-# =========================================================================
 else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    # 🌟 AJOUTE CETTE LIGNE ICI POUR ACTIVER LE RÔLE ADMIN 🌟
     st.session_state["role"] = credentials['usernames'][username].get('role', 'user')
     
     user_email_session = credentials['usernames'][username]['email']
     st.session_state['user_email'] = user_email_session
-    # --- CONSTRUCTION DE LA SIDEBAR DE HAUT EN BAS ---
+    
     with strl.sidebar:
         if os.path.exists("image_609dcc.png"): 
             strl.image("image_609dcc.png", use_column_width=True)
@@ -363,7 +352,6 @@ else:
                 except Exception as e:
                     strl.error(f"Failed to clear database: {str(e)}")
         else:
-            # Message d'avertissement si l'utilisateur connecté n'est pas admin
             strl.warning("🔒 Actions réservées aux administrateurs.")
         
         for _ in range(2):
@@ -372,7 +360,6 @@ else:
         strl.markdown("---")
         authenticator.logout(' Log Out', 'sidebar')
 
-    # Instanciation des onglets principaux dans la zone centrale
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
     # --- DATA INTAKE ---
@@ -395,26 +382,42 @@ else:
                     defects = []
                     occurrences = []
                     
+                    # 🌟 MODIFICATION APPLIQUÉE ICI POUR RENDRE L'EXTRACTION ROBUSTE 🌟
                     for h in details:
-                        for d in h.get("raw_defects_list", []):
-                            defects.append({
-                                "drawing_number": h["drawing_number"],
-                                "defect_code": d["code"],
-                                "penalty_points": d["points"]
-                            })
+                        # Recherche adaptative de la liste des défauts
+                        raw_defects = (
+                            h.get("raw_defects_list") or 
+                            h.get("defects") or 
+                            h.get("defects_list") or []
+                        )
+                        
+                        dn = h.get("drawing_number") or "Unknown"
+                        
+                        for d in raw_defects:
+                            code_defaut = d.get("code") or d.get("defect_code") or d.get("name")
+                            points_defaut = d.get("points") or d.get("penalty_points") or 0
                             
-                            occ_found = next((o for o in occurrences if o["defect_code"] == d["code"]), None)
-                            if occ_found: 
-                                occ_found["total_count"] += 1
-                            else: 
-                                occurrences.append({
-                                    "defect_code": d["code"], 
-                                    "total_count": 1
+                            if code_defaut:
+                                defects.append({
+                                    "drawing_number": dn,
+                                    "defect_code": code_defaut,
+                                    "penalty_points": int(points_defaut)
                                 })
+                                
+                                # Remplissage dynamique sécurisé des occurrences globales
+                                occ_found = next((o for o in occurrences if o["defect_code"] == code_defaut), None)
+                                if occ_found: 
+                                    occ_found["total_count"] += 1
+                                else: 
+                                    occurrences.append({
+                                        "defect_code": code_defaut, 
+                                        "total_count": 1
+                                    })
 
                     save_to_database(summary, details, defects, occurrences, username)
                 
                 st.session_state["injection_success"] = " Data successfully injected into all tables!"
+                st.toast("🎉 Injection réussie avec succès !", icon="✅")
                 strl.rerun()
                 
             except Exception as e:
