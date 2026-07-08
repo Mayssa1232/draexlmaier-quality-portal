@@ -238,10 +238,16 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
                 audit_id_map[dn].append(generated_id)
 
         for d in defects_list:
-            dn_defect = d.get('drawing_number')
-            if dn_defect in audit_id_map:
-                target_audit_id = audit_id_map[dn_defect][0] 
-                
+            dn_defect = d.get('drawing_number', '')
+            target_audit_id = None
+            
+            # Recherche par inclusion (ex: "976.971.602.D" dans "976.971.602.D/VNEM4")[cite: 1]
+            for registered_dn, ids in audit_id_map.items():
+                if registered_dn in dn_defect or dn_defect in registered_dn:
+                    target_audit_id = ids[0]
+                    break
+                    
+            if target_audit_id:
                 cur.execute("""
                     INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
                     VALUES (%s, %s, %s);
