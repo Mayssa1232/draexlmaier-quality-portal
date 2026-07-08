@@ -45,55 +45,44 @@ def clean_json_response(raw_text):
         return raw_text
 
 
-def parse_defects_with_python(page_text_or_path, page_number=None):
-    """Analyse le texte d'une page (ou extrait le texte d'un PDF via pypdf en mode layout)
-    pour récupérer les défauts en gardant l'alignement horizontal strict."""
-    
-    # 1. Si on nous passe un chemin de fichier au lieu du texte brut, on extrait proprement avec le mode layout
-    if isinstance(page_text_or_path, str) and page_text_or_path.lower().endswith('.pdf'):
-        try:
-            reader = PdfReader(page_text_or_path)
-            # Le mode 'layout' préserve les espaces et l'alignement horizontal du tableau !
-            page_text = reader.pages[page_number].extract_text(extraction_mode="layout")
-        except Exception:
-            return []
-    else:
-        page_text = page_text_or_path
+import re
 
+def parse_defects_with_python(page_text, page_number=None):
+    """Analyse le texte pour extraire les codes défauts valides.
+    Règles strictes :
+    - Format court : 1 seul chiffre (1-9) suivi d'UNE lettre majuscule (ex: 2D, 1H) -> Pas de 22D ou 13C.
+    - Format long : Des sous-sections (ex: 3.1.1G) qui se terminent par UNE lettre majuscule.
+    """
     defects_list = []
     
-    # Pattern pour un code défaut (ex: 2D, 1H, 3.1.1G)
-    defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
+    # --- LA NOUVELLE REGEX SÉCURISÉE ---
+    # ^[1-9][A-Z]\b : Un seul chiffre de 1 à 9 suivi d'une lettre (ex: 2D, 1H)
+    # | : OU
+    # \b\d+(?:\.\d+)+[A-Z]\b : Un format long à points (ex: 3.1.1G)
+    defect_pattern = re.compile(r'\b(?:[1-9][A-Z]|\d+(?:\.\d+)+[A-Z])\b')
     
     lines = page_text.split('\n')
-    for line in lines:
-        # On cherche un code défaut sur la ligne
-        match = defect_pattern.search(line)
-        if match:
-            code = match.group(1)
-            points = 0
-            
-            # Grâce au mode layout, les points (100, 200, etc.) sont obligatoirement 
-            # ÉCRITS SUR LA MÊME LIGNE, un peu plus loin à droite.
-            # On cherche tous les nombres isolés restants sur cette même ligne spécifique.
-            all_numbers = re.findall(r'\b\d+\b', line)
-            
-            # On cherche si l'un de ces nombres correspond à un score valide (ex: 10, 50, 75, 100, 200)
-            for num in all_numbers:
-                val = int(num)
-                # Sécurité : on évite de confondre avec un bout du code défaut lui-même
-                if val in [10, 50, 75, 100, 200] and num not in code:
-                    points = val
-                    break
-            
-            # Élimination des faux positifs évidents (mots techniques ou variables isolées)
-            if len(code) <= 3:
-                prefix = code[:-1]
-                if not prefix.isdigit() or int(prefix) > 25:
-                    continue
-                    
-            defects_list.append({"code": code, "points": points})
-            
+    for idx, line in enumerate(lines):
+        clean_line = line.strip()
+        
+        # On cherche les codes correspondants sur la ligne
+        matches = defect_pattern.findall(clean_line)
+        if matches:
+            for code in matches:
+                points = 0
+                
+                # Extraction classique des points sur les lignes suivantes si disponibles
+                for offset in range(1, 4):
+                    if idx + offset < len(lines):
+                        next_line = lines[idx + offset].strip()
+                        if next_line.isdigit():
+                            val_points = int(next_line)
+                            if val_points > 0:
+                                points = val_points
+                                break
+                                
+                defects_list.append({"code": code, "points": points})
+                
     return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
