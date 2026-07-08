@@ -5,6 +5,7 @@ import requests
 import re
 import time 
 import streamlit as st
+import pdfplumber
 
 def get_db_connection():
     # Cette syntaxe va chercher les identifiants Neon automatiquement (en local et sur le cloud)
@@ -43,47 +44,45 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
-def parse_defects_with_python(page_text):
-    """Analyse le texte pour extraire les vrais codes défauts en se basant
-    sur la présence obligatoire de la catégorie de défaut (F, S, K, L) juste après."""
+
+def parse_defects_with_table_method(pdf_path, page_number):
+    """Nouvelle méthode : Extrait les défauts en conservant la structure 
+    en lignes/colonnes du tableau pour éviter les décalages de texte."""
     defects_list = []
     
-    # 1. On cherche un format de code (ex: 2D, 1H, 3.1.1G)
+    # Pattern pour identifier un code défaut (ex: 2D, 1H, 3.1.1G)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
-    
-    # Les catégories de défauts officielles VW/Draexlmaier (F=Fertigung, S=Schadhaft, etc.)
-    VALID_CATEGORIES = {'F', 'S', 'K', 'L'}
-    
-    lines = page_text.split('\n')
-    
-    for idx, line in enumerate(lines):
-        matches = defect_pattern.findall(line)
-        if matches:
-            for code in matches:
-                is_valid_defect = False
-                points = 0
-                
-                # 2. Sécurité : On regarde les 3 lignes suivantes
-                # Le vrai code défaut est TOUJOURS suivi de sa catégorie (F, S, K, L) PUIS de ses points.
-                for offset in range(1, 4):
-                    if idx + offset < len(lines):
-                        next_line = lines[idx + offset].strip()
-                        
-                        # Si on trouve la catégorie de défaut (F, S, K, L)
-                        if next_line in VALID_CATEGORIES:
-                            is_valid_defect = True
-                            
-                        # Si on trouve les points (ex: 75, 100, 200)
-                        elif next_line.isdigit():
-                            val_points = int(next_line)
-                            if val_points > 0:
-                                points = val_points
-                
-                # Si le code est bien accompagné d'une catégorie valide, on l'enregistre !
-                if is_valid_defect:
-                    defects_list.append({"code": code, "points": points})
-                    break # On passe à la ligne suivante
+
+    with pdfplumber.open(pdf_path) as pdf:
+        if page_number < len(pdf.pages):
+            page = pdf.pages[page_number]
+            
+            # Extraction sous forme de grille de lignes/colonnes
+            tables = page.extract_tables()
+            
+            for table in tables:
+                for row in table:
+                    # Nettoyage de la ligne pour enlever les valeurs vides (None)
+                    clean_row = [str(cell).strip() for cell in row if cell is not None]
                     
+                    # On cherche si un élément de la ligne correspond à un code défaut
+                    for cell_idx, cell in enumerate(clean_row):
+                        match = defect_pattern.search(cell)
+                        if match:
+                            code = match.group(1)
+                            points = 0
+                            
+                            # On cherche les points sur la même ligne (cases suivantes)
+                            for next_cell in clean_row[cell_idx + 1:]:
+                                if next_cell.isdigit():
+                                    val_points = int(next_cell)
+                                    if val_points > 0:
+                                        points = val_points
+                                        break # On a trouvé les points de cette ligne
+                                        
+                            defects_list.append({"code": code, "points": points})
+                            break # On passe à la ligne de tableau suivante
+                            
     return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
