@@ -47,40 +47,50 @@ import re
 
 import re
 
+import re
+
 def parse_defects_with_python(page_text):
-    """Analyse le texte d'une page pour extraire les codes défauts exacts (ex: 2D, 1H, 3.1.1G)."""
+    """Analyse le texte pour extraire le code défaut uniquement s'il se trouve 
+    dans la zone du tableau sous l'en-tête 'defect code' ou 'Fehler Code'."""
     defects_list = []
     
-    # Pattern amélioré : capture les codes standards (3.1.1G) ET les codes courts (2D, 1H)
+    # Pattern pour capturer le code (ex: 2D, 1H, 3.1.1G)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
     
     lines = page_text.split('\n')
+    in_defect_table = False
+    
     for idx, line in enumerate(lines):
-        # On extrait TOUS les candidats de la ligne au lieu de s'arrêter au premier
-        matches = defect_pattern.findall(line)
+        clean_line = line.strip().lower()
         
-        if matches:
-            # On cible le code défaut (souvent le premier ou le plus pertinent de la ligne spécifique)
-            code = matches[0]
-            points = 0
+        # 1. On repère l'emplacement : début du tableau des défauts
+        if "defect code" in clean_line or "fehler code" in clean_line:
+            in_defect_table = True
+            continue  # On passe à la ligne suivante pour lire le code
             
-            # Analyse des lignes suivantes pour capturer les points (100, 200, etc.)
-            for offset in range(1, 5):
-                if idx + offset < len(lines):
-                    next_line = lines[idx + offset].strip()
-                    
-                    if next_line.isdigit():
-                        val_points = int(next_line)
-                        if val_points > 0:
-                            points = val_points
-                            break
-            
-            # Évite d'ajouter des faux positifs (comme des extractions de dates ou de coordonnées "2026WP")
-            if len(code) <= 4 and code.endswith('G') and not code.replace('G', '').isdigit():
-                continue # Filtre de sécurité contre les bruits textuels du PDF
+        # 2. Si on est dans la bonne zone, on cherche le premier code valide
+        if in_defect_table:
+            matches = defect_pattern.findall(line)
+            if matches:
+                code = matches[0]
+                points = 0
                 
-            defects_list.append({"code": code, "points": points})
-            
+                # Extraction des points associés sur les lignes suivantes
+                for offset in range(1, 5):
+                    if idx + offset < len(lines):
+                        next_line = lines[idx + offset].strip()
+                        if next_line.isdigit():
+                            val_points = int(next_line)
+                            if val_points > 0:
+                                points = val_points
+                                break
+                                
+                defects_list.append({"code": code, "points": points})
+                
+                # 3. Sécurité : Une fois le vrai code extrait sous l'en-tête, 
+                # on désactive le drapeau pour éviter de capturer du bruit plus bas
+                in_defect_table = False 
+                
     return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
