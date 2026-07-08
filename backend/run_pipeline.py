@@ -45,31 +45,40 @@ def clean_json_response(raw_text):
 
 import re
 
+import re
+
 def parse_defects_with_python(page_text):
-    """Analyse le texte d'une page pour extraire les codes défauts exacts."""
+    """Analyse le texte d'une page pour extraire les codes défauts exacts (ex: 2D, 1H, 3.1.1G)."""
     defects_list = []
-    # Pattern mis à jour pour capturer les formats comme 3.1.1G ou 2D
+    
+    # Pattern amélioré : capture les codes standards (3.1.1G) ET les codes courts (2D, 1H)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
     
     lines = page_text.split('\n')
     for idx, line in enumerate(lines):
-        match = defect_pattern.search(line)
-        if match:
-            code = match.group(1)
+        # On extrait TOUS les candidats de la ligne au lieu de s'arrêter au premier
+        matches = defect_pattern.findall(line)
+        
+        if matches:
+            # On cible le code défaut (souvent le premier ou le plus pertinent de la ligne spécifique)
+            code = matches[0]
             points = 0
             
-            # Analyse des lignes suivantes pour capturer les points associés
-            for offset in range(1, 5):  # Augmenté à 4 lignes d'écart au cas où
+            # Analyse des lignes suivantes pour capturer les points (100, 200, etc.)
+            for offset in range(1, 5):
                 if idx + offset < len(lines):
                     next_line = lines[idx + offset].strip()
                     
-                    # Si la ligne contient uniquement des chiffres (ex: 100 ou 200)
                     if next_line.isdigit():
                         val_points = int(next_line)
                         if val_points > 0:
                             points = val_points
                             break
-                            
+            
+            # Évite d'ajouter des faux positifs (comme des extractions de dates ou de coordonnées "2026WP")
+            if len(code) <= 4 and code.endswith('G') and not code.replace('G', '').isdigit():
+                continue # Filtre de sécurité contre les bruits textuels du PDF
+                
             defects_list.append({"code": code, "points": points})
             
     return defects_list
