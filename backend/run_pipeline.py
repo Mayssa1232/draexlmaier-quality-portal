@@ -48,10 +48,14 @@ def clean_json_response(raw_text):
 import re
 
 def parse_defects_with_python(page_text, page_number=None):
-    """Analyse le texte pour extraire les codes défauts valides.
+    """Analyse le texte pour extraire les codes défauts et leurs points associés.
+    
+    Analyse le texte pour extraire les codes défauts valides.
     Règles strictes :
     - Format court : 1 seul chiffre (1-9) suivi d'UNE lettre majuscule (ex: 2D, 1H) -> Pas de 22D ou 13C.
     - Format long : Des sous-sections (ex: 3.1.1G) qui se terminent par UNE lettre majuscule.
+    Règles strictes sur les points : 0, 25, 75, 100 ou n'importe quel multiple de ces valeurs.
+    
     """
     defects_list = []
     
