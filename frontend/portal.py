@@ -215,18 +215,50 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
                 INSERT INTO public.harness_audits
                 (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
-            """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
-                    r['defect_count'], r['defect_points'], username, r['calculation_factor'],
-                    r['count_wires'], r['count_contacts'], r['count_components'], r['audit_type']))
-            audit_id_map[r['drawing_number']] = cur.fetchone()[0]
+            """, (
+                summary_id, 
+                r.get('vehicle_type'), 
+                r.get('drawing_number'), 
+                r.get('part_description'), 
+                r.get('QK_score'),
+                r.get('defect_count'), 
+                r.get('defect_points'), 
+                username, 
+                r.get('calculation_factor'),
+                r.get('count_wires'), 
+                r.get('count_contacts'), 
+                r.get('count_components'), 
+                r.get('audit_type')
+            ))
+            generated_id = cur.fetchone()[0]
+            
+            # On utilise une liste d'IDs au cas où le même dessin apparaît plusieurs fois
+            dn = r.get('drawing_number')
+            if dn:
+                if dn not in audit_id_map:
+                    audit_id_map[dn] = []
+                audit_id_map[dn].append(generated_id)
 
         for d in defects_list:
-            cur.execute("INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) VALUES (%s, %s, %s);",
-                        (audit_id_map[d['drawing_number']], d['defect_code'], d['penalty_points']))
+            dn_defect = d.get('drawing_number')
+            # Sécurité : On vérifie que le drawing_number existe bien dans la map
+            if dn_defect in audit_id_map:
+                # On associe le défaut au premier ID disponible ou au plus récent
+                target_audit_id = audit_id_map[dn_defect][0] 
+                
+                cur.execute("""
+                    INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
+                    VALUES (%s, %s, %s);
+                """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
+            else:
+                # Optionnel : loguer ou afficher une alerte discrète si un défaut est orphelin
+                pass
 
         for o in occurrences_list:
-            cur.execute("INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) VALUES (%s, %s, %s);",
-                        (summary_id, o['defect_code'], o['total_count']))
+            cur.execute("""
+                INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
+                VALUES (%s, %s, %s);
+            """, (summary_id, o.get('defect_code'), o.get('total_count')))
 
         conn.commit()
     except Exception as e:
