@@ -213,7 +213,7 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
         for r in details:
             cur.execute("""
                 INSERT INTO public.harness_audits
-                (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, auditor_name, calculation_factor, count_wires, count_contacts, count_components, audit_type)
+                (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
             """, (summary_id, r['vehicle_type'], r['drawing_number'], r['part_description'], r['QK_score'],
                     r['defect_count'], r['defect_points'], username, r['calculation_factor'],
