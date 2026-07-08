@@ -43,16 +43,13 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
-import re
-
-import re
-
-import re
-
 def parse_defects_with_python(page_text):
     """Analyse le texte pour extraire le code défaut uniquement s'il se trouve 
     dans la zone du tableau sous l'en-tête 'defect code' ou 'Fehler Code'."""
     defects_list = []
+    
+    # Pattern flexible pour l'emplacement (tolère plusieurs espaces entre les mots)
+    location_pattern = re.compile(r'defect\s*code|fehler\s*code', re.IGNORECASE)
     
     # Pattern pour capturer le code (ex: 2D, 1H, 3.1.1G)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
@@ -61,10 +58,10 @@ def parse_defects_with_python(page_text):
     in_defect_table = False
     
     for idx, line in enumerate(lines):
-        clean_line = line.strip().lower()
+        clean_line = line.strip()
         
-        # 1. On repère l'emplacement : début du tableau des défauts
-        if "defect code" in clean_line or "fehler code" in clean_line:
+        # 1. On repère l'emplacement de manière flexible
+        if location_pattern.search(clean_line):
             in_defect_table = True
             continue  # On passe à la ligne suivante pour lire le code
             
