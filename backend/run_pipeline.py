@@ -43,10 +43,13 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
+import re
+
 def parse_defects_with_python(page_text):
     """Analyse le texte d'une page pour extraire les codes défauts exacts."""
     defects_list = []
-    defect_pattern = re.compile(r'\b(\d+(?:\.\d+)+[A-Z])\b')
+    # Pattern mis à jour pour capturer les formats comme 3.1.1G ou 2D
+    defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
     
     lines = page_text.split('\n')
     for idx, line in enumerate(lines):
@@ -55,13 +58,18 @@ def parse_defects_with_python(page_text):
             code = match.group(1)
             points = 0
             
-            for offset in range(1, 4):
+            # Analyse des lignes suivantes pour capturer les points associés
+            for offset in range(1, 5):  # Augmenté à 4 lignes d'écart au cas où
                 if idx + offset < len(lines):
                     next_line = lines[idx + offset].strip()
-                    if next_line.isdigit() and next_line in ['10', '50', '75', '100']:
-                        points = int(next_line)
-                        break
-                        
+                    
+                    # Si la ligne contient uniquement des chiffres (ex: 100 ou 200)
+                    if next_line.isdigit():
+                        val_points = int(next_line)
+                        if val_points > 0:
+                            points = val_points
+                            break
+                            
             defects_list.append({"code": code, "points": points})
             
     return defects_list
