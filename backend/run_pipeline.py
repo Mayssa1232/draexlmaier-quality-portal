@@ -3,9 +3,9 @@ import json
 import psycopg2
 import requests
 import re
-import time 
+import time
 import streamlit as st
-import pdfplumber
+from pypdf import PdfReader
 
 def get_db_connection():
     # Cette syntaxe va chercher les identifiants Neon automatiquement (en local et sur le cloud)
@@ -44,9 +44,6 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
-
-import re
-from pypdf import PdfReader
 
 def parse_defects_with_python(page_text_or_path, page_number=None):
     """Analyse le texte d'une page (ou extrait le texte d'un PDF via pypdf en mode layout)
