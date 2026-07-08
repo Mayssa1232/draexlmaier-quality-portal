@@ -45,44 +45,58 @@ def clean_json_response(raw_text):
         return raw_text
 
 
-def parse_defects_with_table_method(pdf_path, page_number):
-    """Nouvelle méthode : Extrait les défauts en conservant la structure 
-    en lignes/colonnes du tableau pour éviter les décalages de texte."""
+import re
+from pypdf import PdfReader
+
+def parse_defects_with_python(page_text_or_path, page_number=None):
+    """Analyse le texte d'une page (ou extrait le texte d'un PDF via pypdf en mode layout)
+    pour récupérer les défauts en gardant l'alignement horizontal strict."""
+    
+    # 1. Si on nous passe un chemin de fichier au lieu du texte brut, on extrait proprement avec le mode layout
+    if isinstance(page_text_or_path, str) and page_text_or_path.lower().endswith('.pdf'):
+        try:
+            reader = PdfReader(page_text_or_path)
+            # Le mode 'layout' préserve les espaces et l'alignement horizontal du tableau !
+            page_text = reader.pages[page_number].extract_text(extraction_mode="layout")
+        except Exception:
+            return []
+    else:
+        page_text = page_text_or_path
+
     defects_list = []
     
-    # Pattern pour identifier un code défaut (ex: 2D, 1H, 3.1.1G)
+    # Pattern pour un code défaut (ex: 2D, 1H, 3.1.1G)
     defect_pattern = re.compile(r'\b(\d+(?:\.\d+)*[A-Z])\b')
-
-    with pdfplumber.open(pdf_path) as pdf:
-        if page_number < len(pdf.pages):
-            page = pdf.pages[page_number]
+    
+    lines = page_text.split('\n')
+    for line in lines:
+        # On cherche un code défaut sur la ligne
+        match = defect_pattern.search(line)
+        if match:
+            code = match.group(1)
+            points = 0
             
-            # Extraction sous forme de grille de lignes/colonnes
-            tables = page.extract_tables()
+            # Grâce au mode layout, les points (100, 200, etc.) sont obligatoirement 
+            # ÉCRITS SUR LA MÊME LIGNE, un peu plus loin à droite.
+            # On cherche tous les nombres isolés restants sur cette même ligne spécifique.
+            all_numbers = re.findall(r'\b\d+\b', line)
             
-            for table in tables:
-                for row in table:
-                    # Nettoyage de la ligne pour enlever les valeurs vides (None)
-                    clean_row = [str(cell).strip() for cell in row if cell is not None]
+            # On cherche si l'un de ces nombres correspond à un score valide (ex: 10, 50, 75, 100, 200)
+            for num in all_numbers:
+                val = int(num)
+                # Sécurité : on évite de confondre avec un bout du code défaut lui-même
+                if val in [10, 50, 75, 100, 200] and num not in code:
+                    points = val
+                    break
+            
+            # Élimination des faux positifs évidents (mots techniques ou variables isolées)
+            if len(code) <= 3:
+                prefix = code[:-1]
+                if not prefix.isdigit() or int(prefix) > 25:
+                    continue
                     
-                    # On cherche si un élément de la ligne correspond à un code défaut
-                    for cell_idx, cell in enumerate(clean_row):
-                        match = defect_pattern.search(cell)
-                        if match:
-                            code = match.group(1)
-                            points = 0
-                            
-                            # On cherche les points sur la même ligne (cases suivantes)
-                            for next_cell in clean_row[cell_idx + 1:]:
-                                if next_cell.isdigit():
-                                    val_points = int(next_cell)
-                                    if val_points > 0:
-                                        points = val_points
-                                        break # On a trouvé les points de cette ligne
-                                        
-                            defects_list.append({"code": code, "points": points})
-                            break # On passe à la ligne de tableau suivante
-                            
+            defects_list.append({"code": code, "points": points})
+            
     return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
