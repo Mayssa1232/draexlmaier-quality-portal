@@ -513,49 +513,45 @@ else:
                         strl.info("Dashboard awaiting production data...")
                         
                 elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-    query_occ = """
-        SELECT s.plant, o.defect_code, o.total_count
-        FROM public.pdf_total_occurrences o
-        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-    """
-    df_occ = pd.read_sql(query_occ, conn)
-    if not df_occ.empty:
-        col_chart, col_select = strl.columns([3, 1])
-        with col_select:
-            strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
-            # On ajoute "All Plants" au début de la liste des radios
-            plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
-            selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
-            
-        with col_chart:
-            # --- LOGIQUE DE FILTRAGE AMÉLIORÉE ---
-            if selected_plant == "All Plants":
-                # Si "All Plants", on somme les total_count par code défaut pour toutes les usines
-                df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
-                chart_title = "Total Occurrences per Defect Code (All Plants)"
-            else:
-                # Filtrage classique par usine unique
-                df_filtered = df_occ[df_occ['plant'] == selected_plant]
-                chart_title = f"Occurrences per Defect Code - Plant: {selected_plant}"
-            
-            if not df_filtered.empty:
-                fig_occ = px.bar(
-                    df_filtered,
-                    x='defect_code',
-                    y='total_count',
-                    title=chart_title,
-                    labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
-                    color='total_count',
-                    color_continuous_scale='Viridis',
-                    text_auto=True # Ajoute la valeur exacte au-dessus de chaque barre
-                )
-                fig_occ.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font_color="#ffffff",
-                    title_font_color="#ffffff"
-                )
-                strl.plotly_chart(fig_occ, use_container_width=True)
+                    query_occ = """
+                        SELECT s.plant, o.defect_code, o.total_count
+                        FROM public.pdf_total_occurrences o
+                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                    """
+                    df_occ = pd.read_sql(query_occ, conn)
+                    if not df_occ.empty:
+                        col_chart, col_select = strl.columns([3, 1])
+                        with col_select:
+                            strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
+                            plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
+                            selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                            
+                        with col_chart:
+                            if selected_plant == "All Plants":
+                                df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
+                                chart_title = "Total Occurrences per Defect Code (All Plants)"
+                            else:
+                                df_filtered = df_occ[df_occ['plant'] == selected_plant]
+                                chart_title = f"Occurrences per Defect Code - Plant: {selected_plant}"
+                            
+                            if not df_filtered.empty:
+                                fig_occ = px.bar(
+                                    df_filtered,
+                                    x='defect_code',
+                                    y='total_count',
+                                    title=chart_title,
+                                    labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
+                                    color='total_count',
+                                    color_continuous_scale='Viridis',
+                                    text_auto=True
+                                )
+                                fig_occ.update_layout(
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    font_color="#ffffff",
+                                    title_font_color="#ffffff"
+                                )
+                                strl.plotly_chart(fig_occ, use_container_width=True)
                             else:
                                 strl.warning(f"No defects logged for plant: {selected_plant}.")
                     else:
@@ -565,4 +561,4 @@ else:
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
         else:
-            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
+            strl.warning("⚠️ Access restricted. Only administrators have the required rights to consult these charts and data tables.")
