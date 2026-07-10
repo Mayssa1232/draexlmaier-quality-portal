@@ -42,30 +42,54 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
+
+# --- AJOUT DU REGEX STRICT ET DE LA LISTE D'EXCLUSION AU NIVEAU GLOBAL ---
+DEFECT_CODE_REGEX = re.compile(r'\b\d(?:\.\d+)*[A-Z]\b')
+EXCLUDE_KEYWORDS = ["JIRA", "CP22", "TICKET", "SOLL", "IST"]
+
+def clean_and_validate_defect_code(raw_text):
+    """Vérifie si la ligne contient un vrai code défaut et élimine les faux positifs."""
+    match = DEFECT_CODE_REGEX.search(raw_text)
+    if not match:
+        return None
+        
+    code = match.group(0)
+    upper_line = raw_text.upper()
+    
+    # Élimination des faux positifs (coordonnées de plans ou tickets Jira)[cite: 1]
+    if any(keyword in upper_line for keyword in EXCLUDE_KEYWORDS):
+        return None
+
+    # Un vrai code défaut d'audit produit fait rarement plus de 8 caractères (ex: 3.1.1J)[cite: 1]
+    if len(code) > 8:
+        return None
+        
+    return code
+
 def parse_defects_with_python(page_text, page_number=None):
     """Analyse le texte pour extraire les codes défauts et leurs points associés."""
     defects_list = []
     
-    # Prise en compte des formats de codes complexes à points et lettres (ex: 3.1.2E, 3.2K)
-    defect_pattern = re.compile(r'\b(?:[1-9][A-Z]|\d+(?:\.\d+)+[A-Z])\b')
-    
     lines = page_text.split('\n')
     for idx, line in enumerate(lines):
         clean_line = line.strip()
-        matches = defect_pattern.findall(clean_line)
-        if matches:
-            for code in matches:
-                points = 0
-                for offset in range(1, 5):  # Augmenté à 4 lignes d'écart pour la tolérance de layout
-                    if idx + offset < len(lines):
-                        next_line = lines[idx + offset].strip()
-                        if next_line.isdigit():
-                            val_points = int(next_line)
-                            if val_points > 0:
-                                points = val_points
-                                break
-                                
-                defects_list.append({"code": code, "points": points})
+        
+        # --- MODIFICATION ICI : Utilisation du filtrage strict ---
+        vrai_code = clean_and_validate_defect_code(clean_line)
+        
+        if vrai_code:
+            points = 0
+            # Recherche des points associés dans les lignes suivantes
+            for offset in range(1, 5):  # 4 lignes d'écart pour la tolérance de layout
+                if idx + offset < len(lines):
+                    next_line = lines[idx + offset].strip()
+                    if next_line.isdigit():
+                        val_points = int(next_line)
+                        if val_points > 0:
+                            points = val_points
+                            break
+                            
+            defects_list.append({"code": vrai_code, "points": points})
                 
     return defects_list
 
@@ -137,6 +161,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 raise e
 
     time.sleep(4.5)
+    # (La suite de ton code d'extraction reste identique...)
 
     # =========================================================================
     # STEP B: Extraction de l'Index Référentiel Maître (Page 2)
