@@ -8,7 +8,6 @@ import streamlit as st
 from pypdf import PdfReader
 
 def get_db_connection():
-    # Cette syntaxe va chercher les identifiants Neon automatiquement (en local et sur le cloud)
     return psycopg2.connect(
         host=st.secrets["DB_HOST"],
         database=st.secrets["DB_NAME"],
@@ -19,7 +18,6 @@ def get_db_connection():
 
 def call_groq_cloud(prompt):
     """Envoie une requête HTTP synchrone à l'API Groq Cloud en utilisant les secrets."""
-    # SÉCURITÉ : Récupération de la clé API via st.secrets au lieu de l'écrire en clair
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -44,39 +42,21 @@ def clean_json_response(raw_text):
     except Exception:
         return raw_text
 
-
-import re
-
 def parse_defects_with_python(page_text, page_number=None):
-    """Analyse le texte pour extraire les codes défauts et leurs points associés.
-    
-    Analyse le texte pour extraire les codes défauts valides.
-    Règles strictes :
-    - Format court : 1 seul chiffre (1-9) suivi d'UNE lettre majuscule (ex: 2D, 1H) -> Pas de 22D ou 13C.
-    - Format long : Des sous-sections (ex: 3.1.1G) qui se terminent par UNE lettre majuscule.
-    Règles strictes sur les points : 0, 25, 75, 100 ou n'importe quel multiple de ces valeurs.
-    
-    """
+    """Analyse le texte pour extraire les codes défauts et leurs points associés."""
     defects_list = []
     
-    # --- LA NOUVELLE REGEX SÉCURISÉE ---
-    # ^[1-9][A-Z]\b : Un seul chiffre de 1 à 9 suivi d'une lettre (ex: 2D, 1H)
-    # | : OU
-    # \b\d+(?:\.\d+)+[A-Z]\b : Un format long à points (ex: 3.1.1G)
+    # Prise en compte des formats de codes complexes à points et lettres (ex: 3.1.2E, 3.2K)
     defect_pattern = re.compile(r'\b(?:[1-9][A-Z]|\d+(?:\.\d+)+[A-Z])\b')
     
     lines = page_text.split('\n')
     for idx, line in enumerate(lines):
         clean_line = line.strip()
-        
-        # On cherche les codes correspondants sur la ligne
         matches = defect_pattern.findall(clean_line)
         if matches:
             for code in matches:
                 points = 0
-                
-                # Extraction classique des points sur les lignes suivantes si disponibles
-                for offset in range(1, 4):
+                for offset in range(1, 5):  # Augmenté à 4 lignes d'écart pour la tolérance de layout
                     if idx + offset < len(lines):
                         next_line = lines[idx + offset].strip()
                         if next_line.isdigit():
@@ -119,15 +99,15 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     Your sole task is to convert the global monthly summary page text into a precise JSON object matching a strict schema.
 
     CRITICAL INSTRUCTIONS FOR DYNAMIC PLANT & QK EXTRACTION:
-    1. PLANT NAME LOCATION: Look at the main results table section (usually under 'Fertigungsstätten' or listing numbered sites like '1. A- ...' or '1. ...'). Extract the exact full plant name found there (e.g., 'SDPC Pitesti (Rumänien)' or 'DET Jemmal'). DO NOT hallucinate or default to any plant name not explicitly written in the text.
-    2. QK METRICS LOCATION: Immediately next to, below, or aligned with that extracted plant name, there is a sequence of numbers representing the Quality Classes (QK values for current month and previous month) along with audit counts.
-    3. DATE CONVERSION: Convert the German month name found under or near 'Monat / Jahr' (e.g., 'Juni 2026' or 'Mai 2026') to its exact two-digit numeric equivalent (e.g., 'Juni' -> '06', 'Mai' -> '05').
+    1. PLANT NAME LOCATION: Look at the main results table section (usually under 'Fertigungsstätten' or listing numbered sites like '1. A- ...'). Extract the exact full plant name found there.
+    2. QK METRICS LOCATION: Extract the numerical values (QK min, QK avg, QK max) aligned with that plant. Replace any commas ',' with dots '.' for numerical consistency.
+    3. DATE CONVERSION: Convert the German month name found under 'Monat / Jahr' (e.g., 'Juni 2026' -> '06', 'Mai' -> '05').
 
     Return a comprehensive valid JSON object matching this structure exactly:
     {{
-        "supplier": "Exact company/firm name string found (e.g., 'Dräxlmaier Group')",
-        "plant": "Exact plant site name string extracted dynamically from the table line (e.g., 'SDPC Pitesti (Rumänien)')",
-        "country": "Extract the country name if present in the plant string or location section (e.g., 'Rumänien')",
+        "supplier": "Exact company name found (e.g., 'Dräxlmaier Group')",
+        "plant": "Exact plant site name string (e.g., 'SATE El Jem (Tunesien)')",
+        "country": "Extract the country name if present (e.g., 'Tunesien')",
         "report_month": "Two-digit month numeric string, e.g. '06'",
         "report_year": "Four-digit year numeric string, e.g. '2026'",
         "QK_min": 0.0,
@@ -151,7 +131,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 wait_time = float(match_wait.group(1)) if match_wait else 5.0
                 if match_wait and match_wait.group(2) == "ms":
                     wait_time = wait_time / 1000.0
-                print(f"⏳ Limitation de débit (Page 1). Attente forcée de {wait_time + 1}s...", flush=True)
+                print(f"⏳ Limitation de débit (Page 1). Attente de {wait_time + 1}s...", flush=True)
                 time.sleep(wait_time + 1.0)
             else:
                 raise e
@@ -168,18 +148,16 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     You are a precise data extraction specialist. Analyze this summary table from Page 2 of a Volkswagen/Dräxlmaier audit report.
     Extract EVERY harness row listed in the main table.
 
-    Look closely at the last two columns of the summary table section to capture the correct Audit-Art ("Z" or "P").
-    - These two columns correspond to the audit classifications: "Produktaudit zerstörend" (Destructive / Z) and "Produktaudit partiell" (Partial / P).
-    - "Z" stands for Zerstörend (Destructive) - Checkmark or alignment in the second-to-last column.
-    - "P" stands for Partiell (Partial) - Checkmark or alignment in the very last column.
+    Be careful with shifted layouts or merged columns (like HV and QK columns). Map the QK score to its correct row even if columns look misaligned.
+    Convert any commas to dots in numerical fields.
 
     Return a JSON object with a "harnesses" array matching this format exactly:
     {{
         "harnesses": [
             {{
-                "drawing_number": "The exact Sachnummer/drawing number string (e.g., '9008648')",
+                "drawing_number": "The exact Sachnummer/drawing number or table key string (e.g., 'TAB_016_471_AQ' or '2643533')",
                 "audit_type": "Z",
-                "QK_score": 1.7
+                "QK_score": 0.9
             }}
         ]
     }}
@@ -193,19 +171,26 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         try:
             raw_master = call_groq_cloud(prompt_master_table)
             master_data = json.loads(clean_json_response(raw_master))
-            harness_registry = {
-                str(h["drawing_number"]).strip(): {
-                    "audit_type": h.get("audit_type", "P"),
-                    "QK_score": float(h.get("QK_score", 0.0))
-                } for h in master_data.get("harnesses", [])
-            }
+            for h in master_data.get("harnesses", []):
+                dn_key = str(h.get("drawing_number", "")).strip()
+                if dn_key:
+                    # Traitement sécurisé du score QK (remplacement virgule par point)
+                    qk_raw = str(h.get("QK_score", "0.0")).replace(",", ".").strip()
+                    try:
+                        qk_val = float(qk_raw)
+                    except ValueError:
+                        qk_val = 0.0
+                    harness_registry[dn_key] = {
+                        "audit_type": h.get("audit_type", "P"),
+                        "QK_score": qk_val
+                    }
             break
         except Exception as e:
             if "Rate limit reached" in str(e):
                 print("⏳ Temporisation sur l'analyse maîtresse (Page 2)...", flush=True)
                 time.sleep(6.0)
             else:
-                print(f"⚠️ Impossible de créer le registre Page 2 : {e}. Utilisation du mode dynamique de secours.", flush=True)
+                print(f"⚠️ Impossible de créer le registre Page 2 : {e}. Mode de secours activé.", flush=True)
                 break
 
     time.sleep(4.5)
@@ -220,18 +205,18 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         page_content = pages_text[i]
         page_content_lower = page_content.lower()
         
-        if "ergebnisübersicht" in page_content_lower:
+        if "ergebnisübersicht" in page_content_lower or "jahresübersicht" in page_content_lower:
             continue
 
         is_valid_audit_page = (
             "fahrzeug" in page_content_lower or
             "sachnummer" in page_content_lower or
             "sach-nr" in page_content_lower or
-            "auditor" in page_content_lower
+            "auditor" in page_content_lower or
+            "tabelle" in page_content_lower
         )
         
         if not is_valid_audit_page:
-            print(f"⏩ Page {i+1}/{len(pages_text)} ignorée (Page structurelle ou annexe non pertinente).", flush=True)
             continue
 
         extracted_defects = parse_defects_with_python(page_content)
@@ -242,15 +227,15 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
 
         Return a single JSON object matching this format exactly:
         {{
-            "vehicle_type": "Vehicle or platform name string (e.g., 'AU 416_2B')", 
-            "drawing_number": "Drawing / part number string (Sachnummer)", 
-            "part_description": "Assembly specification description string (e.g., 'LL Cockpit')",
+            "vehicle_type": "Vehicle/platform name string (e.g., 'VW VN 35S')", 
+            "drawing_number": "Drawing / part number string or Table reference found (e.g., 'TAB_016_471_AQ' or '2643533')", 
+            "part_description": "Assembly specification description string (e.g., 'RL')",
             "QK_score": 0.0, 
-            "auditor_name": "Auditor full name string (e.g., 'Horrich Kawther')", 
-            "calculation_factor": 1.0, 
-            "count_wires": 0, 
-            "count_contacts": 0, 
-            "count_components": 0, 
+            "auditor_name": "Auditor full name string (e.g., 'Braiek Ali')", 
+            "calculation_factor": 0.7, 
+            "count_wires": 272, 
+            "count_contacts": 417, 
+            "count_components": 200, 
             "audit_type": "P"
         }}
 
@@ -267,17 +252,31 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 
                 drawing_no = str(harness_obj.get("drawing_number", "")).strip()
                 
-                if drawing_no in harness_registry:
-                    harness_obj["audit_type"] = harness_registry[drawing_no]["audit_type"]
-                    harness_obj["QK_score"] = harness_registry[drawing_no]["QK_score"]
+                # Système d'appariement robuste clé-valeur avec l'index maître
+                matched_master = None
+                for key, val in harness_registry.items():
+                    if key in drawing_no or drawing_no in key:
+                        matched_master = val
+                        break
+                
+                if matched_master:
+                    harness_obj["audit_type"] = matched_master["audit_type"]
+                    harness_obj["QK_score"] = matched_master["QK_score"]
                 else:
+                    # Redressement de type sécurisé si absent de l'index maître
                     try:
-                        val_qk = float(harness_obj.get("QK_score", 0.0))
-                        if val_qk > 10.0:
-                            harness_obj["QK_score"] = 0.0
+                        qk_raw = str(harness_obj.get("QK_score", "0.0")).replace(",", ".").strip()
+                        harness_obj["QK_score"] = float(qk_raw)
                     except (ValueError, TypeError):
                         harness_obj["QK_score"] = 0.0
                 
+                # Conversion sécurisée des entiers de comptage pour éviter les crashs à l'injection
+                for field in ["count_wires", "count_contacts", "count_components"]:
+                    try:
+                        harness_obj[field] = int(str(harness_obj.get(field, "0")).strip())
+                    except ValueError:
+                        harness_obj[field] = 0
+
                 harness_obj["raw_defects_list"] = extracted_defects
                 harness_obj["defect_count"] = len(extracted_defects)
                 harness_obj["defect_points"] = sum(int(d["points"]) for d in extracted_defects)
@@ -289,29 +288,28 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             except Exception as e:
                 if "Rate limit reached" in str(e):
                     match_wait = re.search(r"try again in ([0-9.]+)(s|ms)", str(e))
-                    if match_wait:
-                        wait_value = float(match_wait.group(1))
-                        wait_time = wait_value if match_wait.group(2) == "s" else (wait_value / 1000.0)
-                    else:
-                        wait_time = 5.0
-                        
-                    print(f"⏳ Code 429 détecté. Pause intelligente de {wait_time + 1.5}s avant de réessayer la page {i+1}...", flush=True)
+                    wait_time = float(match_wait.group(1)) if match_wait else 5.0
                     time.sleep(wait_time + 1.5)
                 else:
-                    print(f"⚠️ Erreur de traitement inconnue sur la page {i+1} : {e}", flush=True)
+                    print(f"⚠️ Erreur de traitement ignorée page {i+1} : {e}", flush=True)
                     success = True  
                     time.sleep(3.0)
 
-    # Calcul algorithmique final des métriques globales
-    if all_harnesses and (summary_data.get("QK_avg") == 0.0 or summary_data.get("audits_count") == 0):
-        scores = [float(h['QK_score']) for h in all_harnesses if h.get('QK_score') is not None]
-        if scores:
-            summary_data["QK_min"] = round(min(scores), 2)
-            summary_data["QK_avg"] = round(sum(scores) / len(scores), 2)
-            summary_data["QK_max"] = round(max(scores), 2)
+    # Sécurisation des métriques globales calculées
+    if all_harnesses:
+        try:
+            summary_data["QK_min"] = float(str(summary_data.get("QK_min", 0.0)).replace(",", "."))
+            summary_data["QK_avg"] = float(str(summary_data.get("QK_avg", 0.0)).replace(",", "."))
+            summary_data["QK_max"] = float(str(summary_data.get("QK_max", 0.0)).replace(",", "."))
+        except ValueError:
+            scores = [h['QK_score'] for h in all_harnesses]
+            summary_data["QK_min"] = min(scores) if scores else 0.0
+            summary_data["QK_avg"] = sum(scores)/len(scores) if scores else 0.0
+            summary_data["QK_max"] = max(scores) if scores else 0.0
+
+        if summary_data.get("audits_count") == 0:
             summary_data["audits_count"] = len(all_harnesses)
 
-    # Sécurité d'authentification : initialisation par défaut pour éviter les KeyErrors
     if "user_email" not in summary_data:
         summary_data["user_email"] = None
 

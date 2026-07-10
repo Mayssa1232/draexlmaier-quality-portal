@@ -17,13 +17,18 @@ strl = st
 # 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
-# SÉCURITÉ ABSOLUE : Injection dans le Session State pour tuer le NameError définitivement
+# Session State Initialization
 if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
 # --- PATH & IMPORT ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
-from run_pipeline import extract_dynamic_pdf_data, get_db_connection
+try:
+    from run_pipeline import extract_dynamic_pdf_data, get_db_connection
+except ImportError:
+    # Fallback simulation if paths differ in local environments
+    def get_db_connection():
+        raise NotImplementedError("Database connection utility not found in backend path.")
 
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
@@ -51,7 +56,7 @@ global_design_css = """
         height: 3px !important;
     }
 
-    /* Style des onglets principaux (Pas de ligne verte) */
+    /* Style des onglets principaux */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
@@ -89,7 +94,7 @@ global_design_css = """
         box-shadow: 0 0 0 1px #ff4b4b !important;
     }
     
-    /* MODIFICATION DES BOUTONS : FONCÉS POUR S'ACCORDER AVEC LE TEXTE BLANC */
+    /* MODIFICATION DES BOUTONS */
     .stButton>button,
     div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
         width: 100% !important;
@@ -147,125 +152,108 @@ global_design_css = """
 st.markdown(global_design_css, unsafe_allow_html=True)
 
 # --- DYNAMIC USER LOAD FROM NEON DATABASE ---
+@st.cache_data(show_spinner=False)
 def load_users_from_db():
-    credentials = {"usernames": {}}
+    auth_dict = {"credentials": {"usernames": {}}}
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT username, name, password_hash, email, role FROM users;")
-        rows = cur.fetchall()
-        for row in rows:
-            credentials["usernames"][row["username"]] = {
-                "name": row["name"],
-                "password": row["password_hash"],
-                "email": row["email"],
-                "role": row.get("role", "user")
-            }
-        cur.close()
-        conn.close()
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT username, name, password_hash, email, role FROM users;")
+                rows = cur.fetchall()
+                for row in rows:
+                    auth_dict["credentials"]["usernames"][row["username"]] = {
+                        "name": row["name"],
+                        "password": row["password_hash"],
+                        "email": row["email"],
+                        "role": row.get("role", "user")
+                    }
     except Exception as e:
         st.error(f"Database connection error: {e}")
-    return credentials
+    return auth_dict
 
-credentials = load_users_from_db()
+auth_dict = load_users_from_db()
 
-# --- SECURE JWT INITIALIZATION ---
+# --- SECURE CONFIG & INITIALIZATION FOR AUTHENTICATOR ---
 authenticator = stauth.Authenticate(
-    credentials,
-    'quality_portal_cookie',
-    'une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026',
+    credentials=auth_dict["credentials"],
+    cookie_name='quality_portal_cookie',
+    key='une_cle_de_signature_tres_longue_et_securisee_draexlmaier_2026',
     cookie_expiry_days=30
 )
 
 # --- DANGER ZONE DATA CORRECTION FUNCTION ---
 def clear_production_database():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("TRUNCATE TABLE public.audit_defects_raw RESTART IDENTITY CASCADE;")
-        cur.execute("TRUNCATE TABLE public.pdf_total_occurrences RESTART IDENTITY CASCADE;")
-        cur.execute("TRUNCATE TABLE public.harness_audits RESTART IDENTITY CASCADE;")
-        cur.execute("TRUNCATE TABLE public.monthly_summaries RESTART IDENTITY CASCADE;")
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        cur.close()
-        conn.close()
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
+                cur.execute("TRUNCATE TABLE public.audit_defects_raw RESTART IDENTITY CASCADE;")
+                cur.execute("TRUNCATE TABLE public.pdf_total_occurrences RESTART IDENTITY CASCADE;")
+                cur.execute("TRUNCATE TABLE public.harness_audits RESTART IDENTITY CASCADE;")
+                cur.execute("TRUNCATE TABLE public.monthly_summaries RESTART IDENTITY CASCADE;")
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            INSERT INTO public.monthly_summaries
-            (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
-        """, (summary['supplier'], summary['plant'], summary['country'],
-                str(summary['report_month']), str(summary['report_year']),
-                summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
-        summary_id = cur.fetchone()[0]
-
-        audit_id_map = {}
-        for r in details:
-            cur.execute("""
-                INSERT INTO public.harness_audits
-                (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
-            """, (
-                summary_id, 
-                r.get('vehicle_type'), 
-                r.get('drawing_number'), 
-                r.get('part_description'), 
-                r.get('QK_score'),
-                r.get('defect_count'), 
-                r.get('defect_points'), 
-                username, 
-                r.get('calculation_factor'),
-                r.get('count_wires'), 
-                r.get('count_contacts'), 
-                r.get('count_components'), 
-                r.get('audit_type')
-            ))
-            generated_id = cur.fetchone()[0]
-            
-            dn = r.get('drawing_number')
-            if dn:
-                if dn not in audit_id_map:
-                    audit_id_map[dn] = []
-                audit_id_map[dn].append(generated_id)
-
-        for d in defects_list:
-            dn_defect = d.get('drawing_number', '')
-            target_audit_id = None
-            
-            # Recherche par inclusion (ex: "976.971.602.D" dans "976.971.602.D/VNEM4")[cite: 1]
-            for registered_dn, ids in audit_id_map.items():
-                if registered_dn in dn_defect or dn_defect in registered_dn:
-                    target_audit_id = ids[0]
-                    break
-                    
-            if target_audit_id:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            try:
                 cur.execute("""
-                    INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
-                    VALUES (%s, %s, %s);
-                """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
+                    INSERT INTO public.monthly_summaries
+                    (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
+                """, (summary['supplier'], summary['plant'], summary['country'],
+                      str(summary['report_month']), str(summary['report_year']),
+                      summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
+                summary_id = cur.fetchone()[0]
 
-        for o in occurrences_list:
-            cur.execute("""
-                INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
-                VALUES (%s, %s, %s);
-            """, (summary_id, o.get('defect_code'), o.get('total_count')))
+                audit_id_map = {}
+                for r in details:
+                    cur.execute("""
+                        INSERT INTO public.harness_audits
+                        (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
+                    """, (
+                        summary_id, r.get('vehicle_type'), r.get('drawing_number'), r.get('part_description'), 
+                        r.get('QK_score'), r.get('defect_count'), r.get('defect_points'), username, 
+                        r.get('calculation_factor'), r.get('count_wires'), r.get('count_contacts'), 
+                        r.get('count_components'), r.get('audit_type')
+                    ))
+                    generated_id = cur.fetchone()[0]
+                    
+                    dn = r.get('drawing_number')
+                    if dn:
+                        if dn not in audit_id_map:
+                            audit_id_map[dn] = []
+                        audit_id_map[dn].append(generated_id)
 
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        cur.close()
-        conn.close()
+                for d in defects_list:
+                    dn_defect = d.get('drawing_number', '')
+                    target_audit_id = None
+                    
+                    for registered_dn, ids in audit_id_map.items():
+                        if registered_dn in dn_defect or dn_defect in registered_dn:
+                            target_audit_id = ids[0]
+                            break
+                            
+                    if target_audit_id:
+                        cur.execute("""
+                            INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
+                            VALUES (%s, %s, %s);
+                        """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
+
+                for o in occurrences_list:
+                    cur.execute("""
+                        INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
+                        VALUES (%s, %s, %s);
+                    """, (summary_id, o.get('defect_code'), o.get('total_count')))
+
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
 
 # --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
 if not st.session_state.get("authentication_status"):
@@ -278,10 +266,10 @@ if not st.session_state.get("authentication_status"):
         auth_tab1, auth_tab2 = st.tabs([" Sign In", " Create Account"])
         
         with auth_tab1:
-            authenticator.login()
-            if st.session_state.get("authentication_status") == False:
+            authenticator.login(location='main')
+            if st.session_state.get("authentication_status") is False:
                 st.error("Invalid username or password.")
-            elif st.session_state.get("authentication_status") == None:
+            elif st.session_state.get("authentication_status") is None:
                 st.info("Please log in to access the platform.")
                 
         with auth_tab2:
@@ -292,7 +280,6 @@ if not st.session_state.get("authentication_status"):
                 new_email = st.text_input("Professional Email Address").strip()
                 new_password = st.text_input("Password", type="password")
                 confirm_password = st.text_input("Confirm Password", type="password")
-                
                 submit_reg = st.form_submit_button("Sign Up")
                 
                 if submit_reg:
@@ -305,23 +292,20 @@ if not st.session_state.get("authentication_status"):
                     else:
                         hashed_password = stauth.Hasher.hash(new_password)
                         try:
-                            conn = get_db_connection()
-                            cur = conn.cursor()
-                            cur.execute("SELECT username FROM users WHERE username = %s OR email = %s", (new_username, new_email))
-                            if cur.fetchone():
-                                st.error("This username or email is already taken.")
-                            else:
-                                cur.execute(
-                                    "INSERT INTO users (username, name, password_hash, email) VALUES (%s, %s, %s, %s)",
-                                    (new_username, new_name, hashed_password, new_email)
-                                )
-                                conn.commit()
-                                updated_credentials = load_users_from_db()
-                                authenticator.credentials = updated_credentials
-                                st.success("Account created successfully! You can now log in.")
-                                st.rerun()
-                            cur.close()
-                            conn.close()
+                            with get_db_connection() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute("SELECT username FROM users WHERE username = %s OR email = %s", (new_username, new_email))
+                                    if cur.fetchone():
+                                        st.error("This username or email is already taken.")
+                                    else:
+                                        cur.execute(
+                                            "INSERT INTO users (username, name, password_hash, email, role) VALUES (%s, %s, %s, %s, 'user')",
+                                            (new_username, new_name, hashed_password, new_email)
+                                        )
+                                        conn.commit()
+                                        st.cache_data.clear()  # Evict cached credentials safely
+                                        st.success("Account created successfully! You can now log in.")
+                                        st.rerun()
                         except Exception as e:
                             st.error(f"Registration failed: {e}")
 
@@ -329,14 +313,14 @@ else:
     name = st.session_state["name"]
     username = st.session_state["username"]
     
-    st.session_state["role"] = credentials['usernames'][username].get('role', 'user')
-    
-    user_email_session = credentials['usernames'][username]['email']
-    st.session_state['user_email'] = user_email_session
+    # Secure role mapping from database architecture
+    user_data = auth_dict["credentials"]["usernames"].get(username, {})
+    st.session_state["role"] = user_data.get('role', 'user')
+    st.session_state['user_email'] = user_data.get('email', '')
     
     with strl.sidebar:
         if os.path.exists("image_609dcc.png"): 
-            strl.image("image_609dcc.png", use_column_width=True)
+            strl.image("image_609dcc.png", use_container_width=True)
         strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
@@ -349,7 +333,6 @@ else:
         
         if st.session_state.get("role") == "admin":
             confirm_wipe = strl.checkbox("I understand this will erase all quality logs", key="admin_sidebar_wipe_checkbox")
-            
             if strl.button(" Wipe Database Data", disabled=not confirm_wipe):
                 try:
                     clear_production_database()
@@ -360,9 +343,6 @@ else:
         else:
             strl.warning("🔒 Actions réservées aux administrateurs.")
         
-        for _ in range(2):
-            strl.write("")
-            
         strl.markdown("---")
         authenticator.logout(' Log Out', 'sidebar')
 
@@ -379,7 +359,6 @@ else:
                 strl.rerun()
 
         uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-        
         if uploaded_file and strl.button(" Inject into Database"):
             try:
                 with strl.spinner(" Processing PDF and preparing database injection..."):
@@ -388,15 +367,12 @@ else:
                     defects = []
                     occurrences = []
                     
-                    # 🌟 MODIFICATION APPLIQUÉE ICI POUR RENDRE L'EXTRACTION ROBUSTE 🌟
                     for h in details:
-                        # Recherche adaptative de la liste des défauts
                         raw_defects = (
                             h.get("raw_defects_list") or 
                             h.get("defects") or 
                             h.get("defects_list") or []
                         )
-                        
                         dn = h.get("drawing_number") or "Unknown"
                         
                         for d in raw_defects:
@@ -410,7 +386,6 @@ else:
                                     "penalty_points": int(points_defaut)
                                 })
                                 
-                                # Remplissage dynamique sécurisé des occurrences globales
                                 occ_found = next((o for o in occurrences if o["defect_code"] == code_defaut), None)
                                 if occ_found: 
                                     occ_found["total_count"] += 1
@@ -428,137 +403,103 @@ else:
                 
             except Exception as e:
                 strl.error(f"Injection Failed: {str(e)}")
-                strl.exception(e)
 
     # --- ANALYTICS REGISTER ---
     with tab2:
         strl.header("Quality Analytics Register")
-        
         if st.session_state.get("role") == "admin":
             strl.success("🔓 Accès Admin accordé")
-            
-            subtab1, subtab2, subtab3, subtab4 = strl.tabs([
-                "Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"
-            ])
+            subtab1, subtab2, subtab3, subtab4 = strl.tabs(["Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"])
 
             try:
-                conn = get_db_connection()
-                with subtab1:
-                    df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
-                    if not df1.empty:
-                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                with subtab2:
-                    query2 = """
-                        SELECT s.plant, h.* FROM public.harness_audits h
-                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                    """
-                    df2 = pd.read_sql(query2, conn)
-                    if not df2.empty:
-                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-                with subtab3:
-                    query3 = """
-                        SELECT s.plant, d.* FROM public.audit_defects_raw d
-                        JOIN public.harness_audits h ON d.audit_id = h.audit_id
-                        JOIN public.monthly_summaries s ON h.summary_id = s.summary_id
-                    """
-                    df3 = pd.read_sql(query3, conn)
-                    if not df3.empty:
-                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-                with subtab4:
-                    query4 = """
-                        SELECT s.plant, o.* FROM public.pdf_total_occurrences o
-                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                    """
-                    df4 = pd.read_sql(query4, conn)
-                    if not df4.empty:
-                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                conn.close()
+                with get_db_connection() as conn:
+                    with subtab1:
+                        df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                        if not df1.empty:
+                            strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                    with subtab2:
+                        query2 = "SELECT s.plant, h.* FROM public.harness_audits h JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                        df2 = pd.read_sql(query2, conn)
+                        if not df2.empty:
+                            strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+                    with subtab3:
+                        query3 = "SELECT s.plant, d.* FROM public.audit_defects_raw d JOIN public.harness_audits h ON d.audit_id = h.audit_id JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                        df3 = pd.read_sql(query3, conn)
+                        if not df3.empty:
+                            strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+                    with subtab4:
+                        query4 = "SELECT s.plant, o.* FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
+                        df4 = pd.read_sql(query4, conn)
+                        if not df4.empty:
+                            strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
             except Exception as e:
                 strl.error(f"Error loading registers: {str(e)}")
         else:
-            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis pour consulter ces graphiques et tableaux de données.")
+            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis.")
                     
     # --- DASHBOARD ---
     with tab3:
         strl.header("Performance Dashboard")
-        
         if st.session_state.get("role") == "admin":
-            dashboard_subtab = strl.radio(
-                "Select View:",
-                ["Quality Class average per plant", "Defect Code Frequency & Occurrence"],
-                horizontal=True
-            )
+            dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
             strl.markdown("---")
             try:
-                conn = get_db_connection()
-                if dashboard_subtab == "Quality Class average per plant":
-                    df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
-                    if not df_dash.empty:
-                        fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
-                        fig.update_layout(
-                            paper_bgcolor='rgba(0,0,0,0)',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            font_color="#ffffff",
-                            title_font_color="#ffffff"
-                        )
-                        strl.plotly_chart(fig, use_container_width=True)
-                        global_qk_avg = df_dash['qk_avg'].mean()
-                        strl.markdown(f"""
-                        <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
-                            <h4 style="margin: 0; color: #ffffff;">Global QK Average (All Plants Combined)</h4>
-                            <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        strl.info("Dashboard awaiting production data...")
-                        
-                elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-                    query_occ = """
-                        SELECT s.plant, o.defect_code, o.total_count
-                        FROM public.pdf_total_occurrences o
-                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                    """
-                    df_occ = pd.read_sql(query_occ, conn)
-                    if not df_occ.empty:
-                        col_chart, col_select = strl.columns([3, 1])
-                        with col_select:
-                            strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
-                            plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
-                            selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                with get_db_connection() as conn:
+                    if dashboard_subtab == "Quality Class average per plant":
+                        df_dash = pd.read_sql("SELECT plant, qk_avg FROM public.monthly_summaries", conn)
+                        if not df_dash.empty:
+                            fig = px.bar(df_dash, x='plant', y='qk_avg', title="QK Average per Plant", color='qk_avg')
+                            fig.update_layout(
+                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                font_color="#ffffff", title_font_color="#ffffff",
+                                xaxis=dict(showgrid=False), yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                            )
+                            strl.plotly_chart(fig, use_container_width=True)
+                            global_qk_avg = df_dash['qk_avg'].mean()
+                            strl.markdown(f"""
+                            <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+                                <h4 style="margin: 0; color: #ffffff;">Global QK Average (All Plants Combined)</h4>
+                                <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            strl.info("Dashboard awaiting production data...")
                             
-                        with col_chart:
-                            if selected_plant == "All Plants":
-                                df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
-                                chart_title = "Total Occurrences per Defect Code (All Plants)"
-                            else:
-                                df_filtered = df_occ[df_occ['plant'] == selected_plant]
-                                chart_title = f"Occurrences per Defect Code - Plant: {selected_plant}"
-                            
-                            if not df_filtered.empty:
-                                fig_occ = px.bar(
-                                    df_filtered,
-                                    x='defect_code',
-                                    y='total_count',
-                                    title=chart_title,
-                                    labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
-                                    color='total_count',
-                                    color_continuous_scale='Viridis',
-                                    text_auto=True
-                                )
-                                fig_occ.update_layout(
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    font_color="#ffffff",
-                                    title_font_color="#ffffff"
-                                )
-                                strl.plotly_chart(fig_occ, use_container_width=True)
-                            else:
-                                strl.warning(f"No defects logged for plant: {selected_plant}.")
-                    else:
-                        strl.info("No occurrence data available at the moment.")
-
-                conn.close()
+                    elif dashboard_subtab == "Defect Code Frequency & Occurrence":
+                        query_occ = "SELECT s.plant, o.defect_code, o.total_count FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
+                        df_occ = pd.read_sql(query_occ, conn)
+                        if not df_occ.empty:
+                            col_chart, col_select = strl.columns([3, 1])
+                            with col_select:
+                                strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
+                                plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
+                                selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                                
+                            with col_chart:
+                                if selected_plant == "All Plants":
+                                    df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
+                                    chart_title = "Total Occurrences per Defect Code (All Plants)"
+                                else:
+                                    df_filtered = df_occ[df_occ['plant'] == selected_plant]
+                                    chart_title = f"Occurrences per Defect Code - Plant: {selected_plant}"
+                                
+                                if not df_filtered.empty:
+                                    fig_occ = px.bar(
+                                        df_filtered, x='defect_code', y='total_count', title=chart_title,
+                                        labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
+                                        color='total_count', color_continuous_scale='Viridis', text_auto=True
+                                    )
+                                    fig_occ.update_layout(
+                                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                        font_color="#ffffff", title_font_color="#ffffff",
+                                        xaxis=dict(showgrid=False), yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                    )
+                                    strl.plotly_chart(fig_occ, use_container_width=True)
+                                else:
+                                    strl.warning(f"No defects logged for plant: {selected_plant}.")
+                        else:
+                            strl.info("No occurrence data available at the moment.")
             except Exception as e:
                 strl.error(f"Dashboard Load Error: {str(e)}")
         else:
-            strl.warning("⚠️ Access restricted. Only administrators have the required rights to consult these charts and data tables.")
+            strl.warning("⚠️ Access restricted. Only administrators have the required rights.")
