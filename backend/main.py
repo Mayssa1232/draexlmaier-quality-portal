@@ -7,6 +7,8 @@ import streamlit_authenticator as stauth
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import warnings
+import yaml
+from yaml.loader import SafeLoader
 
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
@@ -21,14 +23,22 @@ st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
-# --- PATH & IMPORT ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+# --- CONFIGURATION DYNAMIQUE DES CHEMINS ---
+current_dir = os.path.dirname(os.path.abspath(__file__)) 
+project_root = os.path.abspath(os.path.join(current_dir, "..")) 
+backend_path = os.path.join(project_root, "backend")
+
+if backend_path not in sys.path:
+    sys.path.append(backend_path)
+
+# Import propre depuis le backend
 try:
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
-except ImportError:
-    # Fallback simulation if paths differ in local environments
+except (ModuleNotFoundError, ImportError):
+    st.error(f"Erreur de chemin : Impossible de trouver 'run_pipeline.py' dans {backend_path}")
+    # Au cas où le fichier manque vraiment, on évite le crash total
     def get_db_connection():
-        raise NotImplementedError("Database connection utility not found in backend path.")
+        raise NotImplementedError(f"Le fichier run_pipeline.py est introuvable dans {backend_path}")
 
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
@@ -205,8 +215,8 @@ def save_to_database(summary, details, defects_list, occurrences_list, username)
                     (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
                 """, (summary['supplier'], summary['plant'], summary['country'],
-                      str(summary['report_month']), str(summary['report_year']),
-                      summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
+                    str(summary['report_month']), str(summary['report_year']),
+                    summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
                 summary_id = cur.fetchone()[0]
 
                 audit_id_map = {}
