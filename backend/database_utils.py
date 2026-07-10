@@ -1,5 +1,6 @@
 import psycopg2
 from psycopg2 import extras
+import re  # <-- RAJOUTÉ : Pour utiliser les Expressions Régulières
 
 def get_db_connection():
     """Gère la connexion à PostgreSQL sur le port actif (5432 ou 5433)."""
@@ -81,7 +82,19 @@ def save_audit_data(summary_data, harness_rows):
                     points = defect.get('points', 0)
                     
                     if code:
-                        # Insertion brute de la ligne telle qu'elle apparaît
+                        # --- DEBUT DE LA MODIFICATION ---
+                        # On applique la règle : si le code contient "2D", il DOIT commencer par "2D" suivi d'un espace.
+                        # S'il y a "2D" mais qu'il est noyé au milieu d'un mot ou d'une phrase de création, on l'ignore.
+                        if "2D" in code:
+                            # On nettoie le texte pour enlever d'éventuels espaces parasites en début de chaîne
+                            code_nettoye = code.strip()
+                            
+                            # Si le code ne commence pas par "2D" suivi d'un espace, on passe au défaut suivant (ignore)
+                            if not re.match(r'^2D\s+', code_nettoye):
+                                continue  # Saute cette ligne et passe au prochain élément du dictionnaire
+                        # --- FIN DE LA MODIFICATION ---
+
+                        # Insertion brute de la ligne validée
                         cursor.execute(raw_defect_query, (audit_id, code, points))
                         
                         # Calcul mathématique de l'occurrence globale exécuté par Python
