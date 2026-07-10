@@ -484,7 +484,8 @@ else:
                             fig.update_layout(
                                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                 font_color="#ffffff", title_font_color="#ffffff",
-                                xaxis=dict(showgrid=False), yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                xaxis=dict(showgrid=False, categoryorder='total descending'), # MODIFICATION ICI : Tri du + haut au + bas
+                                yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
                             )
                             strl.plotly_chart(fig, use_container_width=True)
                             global_qk_avg = df_dash['qk_avg'].mean()
@@ -524,7 +525,8 @@ else:
                                     fig_occ.update_layout(
                                         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                         font_color="#ffffff", title_font_color="#ffffff",
-                                        xaxis=dict(showgrid=False), yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                        xaxis=dict(showgrid=False, categoryorder='total descending'), # MODIFICATION ICI : Tri du + haut au + bas
+                                        yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
                                     )
                                     strl.plotly_chart(fig_occ, use_container_width=True)
                                 else:
