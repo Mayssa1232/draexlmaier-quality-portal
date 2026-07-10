@@ -44,54 +44,77 @@ def clean_json_response(raw_text):
 
 
 # --- AJOUT DU REGEX STRICT ET DE LA LISTE D'EXCLUSION AU NIVEAU GLOBAL ---
-DEFECT_CODE_REGEX = re.compile(r'\b\d(?:\.\d+)*[A-Z]\b')
+
+# Regex générique pour capturer la structure de base (Chiffres + une Lettre)
+GENERIC_PATTERN = re.compile(r'\b\d(?:\.\d+)*[A-Z]\b')
 EXCLUDE_KEYWORDS = ["JIRA", "CP22", "TICKET", "SOLL", "IST"]
 
+# LISTE BLANCHE STRICTE : Seuls ces codes exacts issus de tes matrices sont autorisés
+VALID_DEFECT_CODES = {
+    # Page 1 : Crimp & Welded Joints
+    "1.1.1A", "1.1.1B", "1.1.1C", "1.1.1D", "1.1.1E", "1.1.1F", "1.1.1G", "1.1.1H", "1.1.1J", "1.1.1K", "1.1.1L", "1.1.1M", "1.1.1N", "1.1.1O", "1.1.1P", "1.1.1Q", "1.1.1R", "1.1.1V", "1.1.1W", "1.1.1X", "1.1.1Z",
+    "1.1.2A", "1.1.2B", "1.1.2C", "1.1.2D", "1.1.2F", "1.1.2G", "1.1.2H", "1.1.2J", "1.1.2K", "1.1.2M", "1.1.2N", "1.1.2O", "1.1.2P", "1.1.2Q", "1.1.2R", "1.1.2Z",
+    "1.1.3A", "1.1.3B", "1.1.3C", "1.1.3D", "1.1.3E", "1.1.3F", "1.1.3G", "1.1.3H", "1.1.3J", "1.1.3K", "1.1.3L", "1.1.3M", "1.1.3N", "1.1.3O", "1.1.3Q", "1.1.3U",
+    "1.1.4A", "1.1.4B", "1.1.4C", "1.1.4D", "1.1.4E", "1.1.4G", "1.1.4H", "1.1.4J", "1.1.4K", "1.1.4L", "1.1.4M", "1.1.4N", "1.1.4O", "1.1.4Q", "1.1.4U",
+    "1.1A", "1.1B", "1.1C", "1.1D", "1.1E", "1.1F", "1.1G", "1.1H", "1.1J", "1.1K", "1.1L", "1.1M", "1.1N", "1.1O", "1.1P", "1.1Q", "1.1R", "1.1V", "1.1W", "1.1X", "1.1Z",
+    "1.2A", "1.2B", "1.2C", "1.2D", "1.2E", "1.2F", "1.2G", "1.2H", "1.2J", "1.2K", "1.2L", "1.2M", "1.2N", "1.2O", "1.2P", "1.2Q", "1.2R", "1.2S", "1.2T", "1.2U",
+    "1.3.1A", "1.3.1B", "1.3.1C", "1.3.1D", "1.3.1E", "1.3.1F", "1.3.1G", "1.3.1H", "1.3.1I", "1.3.1J", "1.3.1K", "1.3.1L", "1.3.1M", "1.3.1N", "1.3.1P", "1.3.1S",
+    "1.3.2A", "1.3.2B", "1.3.2C", "1.3.2D", "1.3.2F", "1.3.2H", "1.3.2L",
+    "1.3A", "1.3B", "1.3C", "1.3D", "1.3E", "1.3F", "1.3G", "1.3H", "1.3I", "1.3J", "1.3K", "1.3L", "1.3M", "1.3N", "1.3P", "1.3S",
+    "1.5A", "1.5B", "1.5C",
+
+    # Page 2 : Connector Housings & Wires
+    "2A", "2B", "2C", "2D", "2E", "2F", "2G", "2H", "2I", "2J", "2K", "2L", "2M", "2N",
+    "3.1.1A", "3.1.1B", "3.1.1C", "3.1.1D", "3.1.1E", "3.1.1F", "3.1.1G", "3.1.1I", "3.1.1J", "3.1.1L", "3.1.1M", "3.1.1N", "3.1.1O", "3.1.1P", "3.1.1Q", "3.1.1R", "3.1.1S", "3.1.1T",
+    "3.1.2B", "3.1.2C", "3.1.2D", "3.1.2E", "3.1.2F", "3.1.2G",
+    "3.1.3A", "3.1.3B", "3.1.3C", "3.1.3D", "3.1.3E", "3.1.3F", "3.1.3G", "3.1.3I", "3.1.3J", "3.1.3L", "3.1.3M", "3.1.3N", "3.1.3O", "3.1.3P", "3.1.3Q", "3.1.3R", "3.1.3S", "3.1.3T",
+    "3.2A", "3.2B", "3.2C", "3.2D", "3.2E", "3.2F", "3.2G", "3.2I", "3.2J", "3.2K", "3.2U", "3.2V",
+    "3.3A", "3.3B", "3.3C", "3.3D", "3.3E", "3.3F", "3.3G", "3.3H", "3.3I", "3.3J", "3.3K", "3.3N", "3.3T", "3.3V",
+    "3A", "3B", "3C", "3D", "3E", "3F", "3G", "3H", "3I", "3J", "3K", "3L", "3M", "3N", "3O", "3P", "3Q", "3R", "3S", "3T", "3U", "3V", "3W", "3Y", "3Z",
+
+    # Page 3 : Grommets & Wire Protective Systems
+    "4.1A", "4.1B", "4.1C", "4.1D", "4.1E", "4.1H",
+    "4.2A", "4.2B", "4.2C", "4.2D", "4.2E", "4.2I",
+    "4.3A", "4.3B", "4.3C", "4.3D", "4.3E", "4.3M", "4.3O",
+    "4.4A", "4.4B", "4.4C", "4.4D", "4.4E", "4.4L", "4.4M", "4.4N", "4.4O",
+    "4.5A", "4.5B", "4.5C", "4.5D", "4.5E", "4.5L", "4.5M", "4.5N", "4.5O",
+    "4A", "4B", "4C", "4D", "4E", "4H", "4I", "4K", "4L", "4M", "4N", "4O",
+    "5.1A", "5.1B", "5.1C", "5.1D", "5.1F", "5.1H", "5.1K", "5.1M", "5.1N", "5.1P", "5.1Q",
+    "5.2A", "5.2B", "5.2C", "5.2D", "5.2E", "5.2G", "5.2R", "5.2S",
+    "5A", "5B", "5C", "5D", "5E", "5F", "5G", "5H", "5I", "5J", "5K", "5L", "5M", "5N", "5O", "5P", "5Q", "5R", "5S", "5T", "5U", "5V", "5W", "5X", "5Y", "5Z",
+
+    # Page 4 : Taping / General Components / Packaging
+    "6.1A", "6.1B", "6.1C", "6.1D", "6.1E", "6.1F", "6.1G", "6.1H", "6.1I", "6.1J",
+    "6.2A", "6.2B", "6.2C", "6.2F", "6.2G",
+    "6.3A", "6.3B", "6.3C", "6.3F", "6.3G", "6.3H",
+    "6A", "6B", "6C", "6D", "6E", "6F", "6G", "6H", "6I", "6I", "6K", "6L", "6M", "6N", "6O", "6P",
+    "7.1A", "7.1B", "7.1C", "7.1D", "7.1F", "7.1G", "7.1H", "7.1L", "7.1M", "7.1N", "7.1O", "7.1P",
+    "7.2A", "7.2B", "7.2C", "7.2D", "7.2F", "7.2L", "7.2M", "7.2P",
+    "7.4A", "7.4B", "7.4D", "7.4K", "7.4L", "7.4P",
+    "7A", "7B", "7C", "7D", "7E", "7F", "7G", "7H", "7I", "7J", "7K", "7L", "7M", "7N", "7O", "7P",
+    "8.1A", "8.1B", "8.1D", "8.1G", "8.1H", "8.1L", "8.1R",
+    "8.2A", "8.2B", "8.2D", "8.2T", "8.2U",
+    "8A", "8B", "8C", "8D", "8E", "8F", "8G", "8H", "8I", "8J", "8K", "8L", "8M", "8N", "8O", "8P", "8Q", "8R", "8S", "8T", "8U"
+}
+
 def clean_and_validate_defect_code(raw_text):
-    """Vérifie si la ligne contient un vrai code défaut et élimine les faux positifs."""
-    match = DEFECT_CODE_REGEX.search(raw_text)
+    """Filtre absolu : Rejette TOUT code absent de la liste blanche d'audit."""
+    match = GENERIC_PATTERN.search(raw_text)
     if not match:
         return None
         
     code = match.group(0)
     upper_line = raw_text.upper()
     
-    # Élimination des faux positifs (coordonnées de plans ou tickets Jira)[cite: 1]
+    # Élimination des lignes contextuelles parasites (Jira, Spécifications)
     if any(keyword in upper_line for keyword in EXCLUDE_KEYWORDS):
         return None
 
-    # Un vrai code défaut d'audit produit fait rarement plus de 8 caractères (ex: 3.1.1J)[cite: 1]
-    if len(code) > 8:
+    # VÉRIFICATION DE LA LISTE BLANCHE : Si le code extrait n'existe pas dedans, REJET immédiat.
+    if code not in VALID_DEFECT_CODES:
         return None
         
     return code
-
-def parse_defects_with_python(page_text, page_number=None):
-    """Analyse le texte pour extraire les codes défauts et leurs points associés."""
-    defects_list = []
-    
-    lines = page_text.split('\n')
-    for idx, line in enumerate(lines):
-        clean_line = line.strip()
-        
-        # --- MODIFICATION ICI : Utilisation du filtrage strict ---
-        vrai_code = clean_and_validate_defect_code(clean_line)
-        
-        if vrai_code:
-            points = 0
-            # Recherche des points associés dans les lignes suivantes
-            for offset in range(1, 5):  # 4 lignes d'écart pour la tolérance de layout
-                if idx + offset < len(lines):
-                    next_line = lines[idx + offset].strip()
-                    if next_line.isdigit():
-                        val_points = int(next_line)
-                        if val_points > 0:
-                            points = val_points
-                            break
-                            
-            defects_list.append({"code": vrai_code, "points": points})
-                
-    return defects_list
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
     """Analyse le PDF et extrait de manière déterministe le résumé et le détail des faisceaux."""
