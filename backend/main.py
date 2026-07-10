@@ -9,6 +9,7 @@ from psycopg2.extras import RealDictCursor
 import warnings
 import yaml
 from yaml.loader import SafeLoader
+import hashlib
 
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
@@ -206,18 +207,31 @@ def clear_production_database():
                 raise e
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
-def save_to_database(summary, details, defects_list, occurrences_list, username):
+def save_to_database(summary, details, defects_list, occurrences_list, username, file_bytes):
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             try:
+                # 1. Calculate unique MD5 hash from the file bytes
+                pdf_hash = hashlib.md5(file_bytes).hexdigest()
+                
+                # 2. Insert summary only if this exact report/file combination doesn't exist for the plant/supplier
                 cur.execute("""
                     INSERT INTO public.monthly_summaries
-                    (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING summary_id;
+                    (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count, pdf_hash)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                    ON CONFLICT (plant, supplier, report_month, report_year, pdf_hash) DO NOTHING
+                    RETURNING summary_id;
                 """, (summary['supplier'], summary['plant'], summary['country'],
                     str(summary['report_month']), str(summary['report_year']),
-                    summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count']))
-                summary_id = cur.fetchone()[0]
+                    summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count'], pdf_hash))
+                
+                result = cur.fetchone()
+                
+                # If result is None, it means ON CONFLICT was triggered (Duplicate found)
+                if result is None:
+                    raise Exception("Duplicate ignored: This specific PDF report has already been processed for this site/plant.")
+                
+                summary_id = result[0]
 
                 audit_id_map = {}
                 for r in details:
@@ -372,7 +386,8 @@ else:
         if uploaded_file and strl.button(" Inject into Database"):
             try:
                 with strl.spinner(" Processing PDF and preparing database injection..."):
-                    summary, details = extract_dynamic_pdf_data(uploaded_file.read())
+                    file_bytes = uploaded_file.read() # On lit les bytes une seule fois ici
+                    summary, details = extract_dynamic_pdf_data(file_bytes)
                     
                     defects = []
                     occurrences = []
@@ -405,9 +420,10 @@ else:
                                         "total_count": 1
                                     })
 
-                    save_to_database(summary, details, defects, occurrences, username)
+                    # CORRECTION ICI : Passage explicite de file_bytes en 6ème paramètre
+                    save_to_database(summary, details, defects, occurrences, username, file_bytes)
                 
-                st.session_state["injection_success"] = " Data successfully injected into all tables!"
+                st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
                 st.toast("🎉 Injection réussie avec succès !", icon="✅")
                 strl.rerun()
                 
