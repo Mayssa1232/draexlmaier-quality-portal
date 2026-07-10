@@ -440,7 +440,13 @@ else:
             try:
                 with get_db_connection() as conn:
                     with subtab1:
-                        df1 = pd.read_sql("SELECT * FROM public.monthly_summaries", conn)
+                        cursor_summaries = conn.cursor()
+                        cursor_summaries.execute("SELECT * FROM public.monthly_summaries;")
+                        rows_summaries = cursor_summaries.fetchall()
+                        colnames_summaries = [desc[0] for desc in cursor_summaries.description]
+                        cursor_summaries.close()
+
+                        df1 = pd.DataFrame(rows_summaries, columns=colnames_summaries)
                         if not df1.empty:
                             strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
                     with subtab2:
