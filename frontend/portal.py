@@ -8,7 +8,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import yaml
 from yaml.loader import SafeLoader
-from run_pipeline import get_sqlalchemy_engine  # Ajoute-la ici
 import hashlib
 import plotly.io as pio
 pio.renderers.default = "notebook_connected"
