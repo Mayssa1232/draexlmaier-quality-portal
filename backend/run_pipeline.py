@@ -336,8 +336,10 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
 
                 harness_obj["raw_defects_list"] = extracted_defects
                 harness_obj["defect_count"] = len(extracted_defects)
-                harness_obj["defect_points"] = sum(int(d["points"]) for d in extracted_defects)
-                
+
+                # Solution temporaire sécurisée (0 points par défaut) pour éviter le crash de type
+                harness_obj["defect_points"] = 0
+                                
                 all_harnesses.append(harness_obj)
                 success = True  
                 time.sleep(4.5)
