@@ -33,15 +33,20 @@ backend_path = os.path.join(project_root, "backend")
 if backend_path not in sys.path:
     sys.path.append(backend_path)
 
-# Import propre depuis le backend
+
+# 1. On trouve dynamiquement le chemin absolu du dossier 'backend'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_path = os.path.abspath(os.path.join(current_dir, "..", "backend"))
+
+# 2. On l'ajoute au chemin de recherche de Python s'il n'y est pas déjà
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+# 3. Maintenant, l'import fonctionnera à coup sûr, peu importe l'environnement !
 try:
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
-except (ModuleNotFoundError, ImportError):
-    st.error(f"Erreur de chemin : Impossible de trouver 'run_pipeline.py' dans {backend_path}")
-    # Au cas où le fichier manque vraiment, on évite le crash total
-    def get_db_connection():
-        raise NotImplementedError(f"Le fichier run_pipeline.py est introuvable dans {backend_path}")
-
+except (ModuleNotFoundError, ImportError) as e:
+    st.error(f"Erreur de chemin : Impossible de charger les fonctions de 'run_pipeline.py'. Détails : {e}")
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
 <style>
