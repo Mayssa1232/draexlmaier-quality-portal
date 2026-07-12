@@ -471,7 +471,7 @@ else:
         else:
             strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis.")
                     
-   # --- DASHBOARD ---
+    # --- DASHBOARD ---
     with tab3:
         strl.header("Performance Dashboard")
         

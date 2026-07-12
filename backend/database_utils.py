@@ -122,3 +122,43 @@ def save_audit_data(summary_data, harness_rows):
         if conn:
             cursor.close()
             conn.close()
+def get_available_months():
+    """Récupère tous les mois uniques disponibles basés sur les rapports (format 'YYYY-MM')."""
+    query = """
+        SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month 
+        FROM public.monthly_summaries 
+        ORDER BY audit_month DESC;
+    """
+    try:
+        with get_db_connection() as conn:
+            return pd.read_sql(query, conn)['audit_month'].tolist()
+    except:
+        return []
+
+def get_qk_data_by_month(selected_month):
+    """Récupère les scores QK par Plant pour un mois donné."""
+    query = """
+        SELECT plant, qk_avg 
+        FROM public.monthly_summaries 
+        WHERE TO_CHAR(created_at, 'YYYY-MM') = %s;
+    """
+    try:
+        with get_db_connection() as conn:
+            return pd.read_sql(query, conn, params=[selected_month])
+    except:
+        return pd.DataFrame()
+
+def get_defects_by_month(selected_month):
+    """Récupère la somme des occurrences de codes défauts par Plant pour un mois donné."""
+    query = """
+        SELECT o.defect_code, s.plant, SUM(o.total_count) as total_count
+        FROM public.pdf_total_occurrences o
+        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+        WHERE TO_CHAR(s.created_at, 'YYYY-MM') = %s
+        GROUP BY o.defect_code, s.plant;
+    """
+    try:
+        with get_db_connection() as conn:
+            return pd.read_sql(query, conn, params=[selected_month])
+    except:
+        return pd.DataFrame()

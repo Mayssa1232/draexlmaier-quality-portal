@@ -44,15 +44,14 @@ def clean_json_response(raw_text):
 
 
 # --- AJOUT DU REGEX STRICT ET DE LA LISTE D'EXCLUSION AU NIVEAU GLOBAL ---
+import re
 
-# REGEX SÉCURISÉ : Il impose un chiffre, un POINT obligatoire, des chiffres, et une lettre (ex: 8.1A)
-# On gère le cas particulier du groupe 2 séparément s'il apparaît sans point.
+# --- LE REGEX STRICT ET LA LISTE D'EXCLUSION QUE TU AS MODIFIÉS ---
 DEFECT_PATTERN = re.compile(r'\b\d\.\d+(?:\.\d+)*[A-Z]\b|\b2[A-N]\b')
 EXCLUDE_KEYWORDS = ["JIRA", "CP22", "TICKET", "SOLL", "IST"]
 
-# LISTE BLANCHE NETTOYÉE (Avec l'ajout des sous-codes réels 1.5)
 VALID_DEFECT_CODES = {
-    # Page 1 : Crimp & Welded Joints (Uniquement les vrais sous-codes)
+    # Page 1 : Crimp & Welded Joints
     "1.1.1A", "1.1.1B", "1.1.1C", "1.1.1D", "1.1.1E", "1.1.1F", "1.1.1G", "1.1.1H", "1.1.1J", "1.1.1K", "1.1.1L", "1.1.1M", "1.1.1N", "1.1.1O", "1.1.1P", "1.1.1Q", "1.1.1R", "1.1.1V", "1.1.1W", "1.1.1X", "1.1.1Z",
     "1.1.2A", "1.1.2B", "1.1.2C", "1.1.2D", "1.1.2F", "1.1.2G", "1.1.2H", "1.1.2J", "1.1.2K", "1.1.2M", "1.1.2N", "1.1.2O", "1.1.2P", "1.1.2Q", "1.1.2R", "1.1.2Z",
     "1.1.3A", "1.1.3B", "1.1.3C", "1.1.3D", "1.1.3E", "1.1.3F", "1.1.3G", "1.1.3H", "1.1.3J", "1.1.3K", "1.1.3L", "1.1.3M", "1.1.3N", "1.1.3O", "1.1.3Q", "1.1.3U",
@@ -60,9 +59,9 @@ VALID_DEFECT_CODES = {
     "1.2A", "1.2B", "1.2C", "1.2D", "1.2E", "1.2F", "1.2G", "1.2H", "1.2J", "1.2K", "1.2L", "1.2M", "1.2N", "1.2O", "1.2P", "1.2Q", "1.2R", "1.2S", "1.2T", "1.2U",
     "1.3.1A", "1.3.1B", "1.3.1C", "1.3.1D", "1.3.1E", "1.3.1F", "1.3.1G", "1.3.1H", "1.3.1I", "1.3.1J", "1.3.1K", "1.3.1L", "1.3.1M", "1.3.1N", "1.3.1P", "1.3.1S",
     "1.3.2A", "1.3.2B", "1.3.2C", "1.3.2D", "1.3.2F", "1.3.2H", "1.3.2L",
-    "1.5A", "1.5B", "1.5C", # AJOUT ICI : Les codes valides pour les joints soudés
+    "1.5A", "1.5B", "1.5C",
 
-    # Page 2 : Connector Housings (Seul le groupe 2 n'a pas de sous-point) & Wires
+    # Page 2 : Connector Housings & Wires
     "2A", "2B", "2C", "2D", "2E", "2F", "2G", "2H", "2I", "2J", "2K", "2L", "2M", "2N",
     "3.1.1A", "3.1.1B", "3.1.1C", "3.1.1D", "3.1.1E", "3.1.1F", "3.1.1G", "3.1.1I", "3.1.1J", "3.1.1L", "3.1.1M", "3.1.1N", "3.1.1O", "3.1.1P", "3.1.1Q", "3.1.1R", "3.1.1S", "3.1.1T",
     "3.1.2B", "3.1.2C", "3.1.2D", "3.1.2E", "3.1.2F", "3.1.2G",
@@ -106,6 +105,49 @@ def clean_and_validate_defect_code(raw_text):
         return None
         
     return code
+
+# --- RÉINTÉGRATION DE LA FONCTION QUE PIPELINE RECHERCHE ---
+def parse_defects_with_python(pdf_path_or_text):
+    """
+    Fonction principale appelée par le pipeline pour parser les défauts.
+    Elle utilise ta fonction de validation stricte définie juste au-dessus.
+    """
+    valid_defects = []
+    
+    # Si c'est directement du texte extrait (dépend de comment ton pipeline l'appelait)
+    if isinstance(pdf_path_or_text, str) and not pdf_path_or_text.endswith('.pdf'):
+        lines = pdf_path_or_text.split('\n')
+        for line in lines:
+            validated_code = clean_and_validate_defect_code(line)
+            if validated_code:
+                valid_defects.append(validated_code)
+                
+    # Si c'est un chemin vers un fichier PDF (ex: avec PyPDF2 ou pdfplumber)
+    else:
+        try:
+            import pdfplumber
+            with pdfplumber.open(pdf_path_or_text) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        for line in text.split('\n'):
+                            validated_code = clean_and_validate_defect_code(line)
+                            if validated_code:
+                                valid_defects.append(validated_code)
+        except ImportError:
+            # Fallback vers PyPDF2 si pdfplumber n'est pas installé
+            import PyPDF2
+            with open(pdf_path_or_text, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        for line in text.split('\n'):
+                            validated_code = clean_and_validate_defect_code(line)
+                            if validated_code:
+                                valid_defects.append(validated_code)
+                                
+    return valid_defects
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
     """Analyse le PDF et extrait de manière déterministe le résumé et le détail des faisceaux."""
