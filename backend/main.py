@@ -10,27 +10,15 @@ import yaml
 from yaml.loader import SafeLoader
 import hashlib
 import plotly.io as pio
+pio.renderers.default = "notebook_connected"
 import warnings
 
-# Désactive les avertissements de connexion Pandas dans les logs
+# Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
-pio.renderers.default = "notebook_connected"
 
-# Sécurité pour les chemins sur Streamlit Cloud : on ajoute la racine au sys.path
-root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_path not in sys.path:
-    sys.path.append(root_path)
-
-# Import unique et propre depuis le dossier backend
-from backend.run_pipeline import (
-    extract_dynamic_pdf_data, 
-    save_to_database, 
-    get_db_connection, 
-    get_sqlalchemy_engine
-)
-
-# Alias pour la compatibilité avec ton code existant
+# Alias for compatibility with your existing workspace code
 strl = st
+
 # 1. PAGE CONFIGURATION (MUST BE ABSOLUTELY FIRST)
 st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 
@@ -39,27 +27,18 @@ if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
 # --- CONFIGURATION DYNAMIQUE DES CHEMINS ---
-current_dir = os.path.dirname(os.path.abspath(__file__)) 
-project_root = os.path.abspath(os.path.join(current_dir, "..")) 
-backend_path = os.path.join(project_root, "backend")
-
-if backend_path not in sys.path:
-    sys.path.append(backend_path)
-
-
-# 1. On trouve dynamiquement le chemin absolu du dossier 'backend'
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_path = os.path.abspath(os.path.join(current_dir, "..", "backend"))
 
-# 2. On l'ajoute au chemin de recherche de Python s'il n'y est pas déjà
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-# 3. Maintenant, l'import fonctionnera à coup sûr, peu importe l'environnement !
+# Import des fonctions du pipeline avec gestion d'erreur
 try:
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 except (ModuleNotFoundError, ImportError) as e:
     st.error(f"Erreur de chemin : Impossible de charger les fonctions de 'run_pipeline.py'. Détails : {e}")
+
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
 <style>
@@ -391,7 +370,7 @@ else:
 
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-    # ==============================================================================
+# ==============================================================================
 # --- PORTAL TABS MANAGEMENTS ---
 # ==============================================================================
 
@@ -461,33 +440,32 @@ with tab2:
         subtab1, subtab2, subtab3, subtab4 = strl.tabs(["Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"])
 
         try:
-            # Récupération du moteur stable SQLAlchemy pour les lectures Pandas
-            engine = get_sqlalchemy_engine()
-            
-            with subtab1:
-                query1 = "SELECT * FROM public.monthly_summaries;"
-                df1 = pd.read_sql(query1, engine)
-                if not df1.empty:
-                    strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                    
-            with subtab2:
-                query2 = "SELECT s.plant, h.* FROM public.harness_audits h JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
-                df2 = pd.read_sql(query2, engine)
-                if not df2.empty:
-                    strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-                    
-            with subtab3:
-                query3 = "SELECT s.plant, d.* FROM public.audit_defects_raw d JOIN public.harness_audits h ON d.audit_id = h.audit_id JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
-                df3 = pd.read_sql(query3, engine)
-                if not df3.empty:
-                    strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-                    
-            with subtab4:
-                query4 = "SELECT s.plant, o.* FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
-                df4 = pd.read_sql(query4, engine)
-                if not df4.empty:
-                    strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                    
+            # Utilisation directe du context manager natif pour les requêtes Pandas SQL
+            with get_db_connection() as conn:
+                with subtab1:
+                    query1 = "SELECT * FROM public.monthly_summaries;"
+                    df1 = pd.read_sql(query1, conn)
+                    if not df1.empty:
+                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                        
+                with subtab2:
+                    query2 = "SELECT s.plant, h.* FROM public.harness_audits h JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                    df2 = pd.read_sql(query2, conn)
+                    if not df2.empty:
+                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+                        
+                with subtab3:
+                    query3 = "SELECT s.plant, d.* FROM public.audit_defects_raw d JOIN public.harness_audits h ON d.audit_id = h.audit_id JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                    df3 = pd.read_sql(query3, conn)
+                    if not df3.empty:
+                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+                        
+                with subtab4:
+                    query4 = "SELECT s.plant, o.* FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
+                    df4 = pd.read_sql(query4, conn)
+                    if not df4.empty:
+                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                        
         except Exception as e:
             strl.error(f"Error loading registers: {str(e)}")
     else:
@@ -499,94 +477,93 @@ with tab3:
     
     if st.session_state.get("role") == "admin":
         try:
-            engine = get_sqlalchemy_engine()
-            
-            # 1. RÉCUPÉRATION DES MOIS DISPONIBLES (Basé sur la date du PDF)
-            query_months = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month FROM public.monthly_summaries ORDER BY audit_month DESC"
-            df_months = pd.read_sql(query_months, engine)
-            
-            if not df_months.empty:
-                available_months = df_months['audit_month'].tolist()
+            with get_db_connection() as conn:
+                # 1. RÉCUPÉRATION DES MOIS DISPONIBLES (Basé sur la date du PDF)
+                query_months = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month FROM public.monthly_summaries ORDER BY audit_month DESC"
+                df_months = pd.read_sql(query_months, conn)
                 
-                # Sélecteur global de mois tout en haut
-                selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
-                strl.markdown("---")
-                
-                # Onglets radio
-                dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
-                strl.markdown("---")
-                
-                # --- VUE 1 : QUALITY CLASS AVERAGE PER PLANT ---
-                if dashboard_subtab == "Quality Class average per plant":
-                    query_qk = f"SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = '{selected_month}'"
-                    df_dash = pd.read_sql(query_qk, engine)
+                if not df_months.empty:
+                    available_months = df_months['audit_month'].tolist()
                     
-                    if not df_dash.empty:
-                        fig = px.bar(df_dash, x='plant', y='qk_avg', title=f"QK Average per Plant ({selected_month})", color='qk_avg')
-                        fig.update_layout(
-                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                            font_color="#ffffff", title_font_color="#ffffff",
-                            xaxis=dict(showgrid=False, categoryorder='total descending'),
-                            yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
-                        )
-                        strl.plotly_chart(fig, width="stretch")
-                        
-                        # Calcul de la moyenne pour CE mois précis
-                        global_qk_avg = df_dash['qk_avg'].mean()
-                        strl.markdown(f"""
-                        <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
-                            <h4 style="margin: 0; color: #ffffff;">Global QK Average for {selected_month} (All Plants Combined)</h4>
-                            <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}%</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        strl.info(f"No production data found for the month: {selected_month}")
-                        
-                # --- VUE 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
-                elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-                    query_occ = f"""
-                        SELECT s.plant, o.defect_code, o.total_count 
-                        FROM public.pdf_total_occurrences o 
-                        JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                        WHERE TO_CHAR(s.created_at, 'YYYY-MM') = '{selected_month}'
-                    """
-                    df_occ = pd.read_sql(query_occ, engine)
+                    # Sélecteur global de mois tout en haut
+                    selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
+                    strl.markdown("---")
                     
-                    if not df_occ.empty:
-                        col_chart, col_select = strl.columns([3, 1])
+                    # Onglets radio
+                    dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
+                    strl.markdown("---")
+                    
+                    # --- VUE 1 : QUALITY CLASS AVERAGE PER PLANT ---
+                    if dashboard_subtab == "Quality Class average per plant":
+                        query_qk = f"SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = '{selected_month}'"
+                        df_dash = pd.read_sql(query_qk, conn)
                         
-                        with col_select:
-                            strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
-                            plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
-                            selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                        if not df_dash.empty:
+                            fig = px.bar(df_dash, x='plant', y='qk_avg', title=f"QK Average per Plant ({selected_month})", color='qk_avg')
+                            fig.update_layout(
+                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                font_color="#ffffff", title_font_color="#ffffff",
+                                xaxis=dict(showgrid=False, categoryorder='total descending'),
+                                yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                            )
+                            strl.plotly_chart(fig, width="stretch")
                             
-                        with col_chart:
-                            if selected_plant == "All Plants":
-                                df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
-                                chart_title = f"Total Occurrences per Defect Code - Combined Plants ({selected_month})"
-                            else:
-                                df_filtered = df_occ[df_occ['plant'] == selected_plant]
-                                chart_title = f"Occurrences per Defect Code - Plant: {selected_plant} ({selected_month})"
+                            # Calcul de la moyenne pour CE mois précis
+                            global_qk_avg = df_dash['qk_avg'].mean()
+                            strl.markdown(f"""
+                            <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+                                <h4 style="margin: 0; color: #ffffff;">Global QK Average for {selected_month} (All Plants Combined)</h4>
+                                <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}%</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            strl.info(f"No production data found for the month: {selected_month}")
                             
-                            if not df_filtered.empty:
-                                fig_occ = px.bar(
-                                    df_filtered, x='defect_code', y='total_count', title=chart_title,
-                                    labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
-                                    color='total_count', color_continuous_scale='Viridis', text_auto=True
-                                )
-                                fig_occ.update_layout(
-                                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                    font_color="#ffffff", title_font_color="#ffffff",
-                                    xaxis=dict(showgrid=False, categoryorder='total descending'),
-                                    yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
-                                )
-                                strl.plotly_chart(fig_occ, width="stretch")
-                            else:
-                                strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
-                    else:
-                        strl.info(f"No occurrence data available for {selected_month}.")
-            else:
-                strl.info("Dashboard awaiting database records...")
+                    # --- VUE 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
+                    elif dashboard_subtab == "Defect Code Frequency & Occurrence":
+                        query_occ = f"""
+                            SELECT s.plant, o.defect_code, o.total_count 
+                            FROM public.pdf_total_occurrences o 
+                            JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                            WHERE TO_CHAR(s.created_at, 'YYYY-MM') = '{selected_month}'
+                        """
+                        df_occ = pd.read_sql(query_occ, conn)
+                        
+                        if not df_occ.empty:
+                            col_chart, col_select = strl.columns([3, 1])
+                            
+                            with col_select:
+                                strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
+                                plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
+                                selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                                
+                            with col_chart:
+                                if selected_plant == "All Plants":
+                                    df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
+                                    chart_title = f"Total Occurrences per Defect Code - Combined Plants ({selected_month})"
+                                else:
+                                    df_filtered = df_occ[df_occ['plant'] == selected_plant]
+                                    chart_title = f"Occurrences per Defect Code - Plant: {selected_plant} ({selected_month})"
+                                
+                                if not df_filtered.empty:
+                                    fig_occ = px.bar(
+                                        df_filtered, x='defect_code', y='total_count', title=chart_title,
+                                        labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
+                                        color='total_count', color_continuous_scale='Viridis', text_auto=True
+                                    )
+                                    fig_occ.update_layout(
+                                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                        font_color="#ffffff", title_font_color="#ffffff",
+                                        xaxis=dict(showgrid=False, categoryorder='total descending'),
+                                        yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                    )
+                                    strl.plotly_chart(fig_occ, width="stretch")
+                                else:
+                                    strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
+                        else:
+                            strl.info(f"No occurrence data available for {selected_month}.")
+                else:
+                    strl.info("Dashboard awaiting database records...")
         except Exception as e:
             strl.error(f"Dashboard Load Error: {str(e)}")
     else:
