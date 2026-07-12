@@ -6,13 +6,12 @@ import plotly.express as px
 import streamlit_authenticator as stauth
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import warnings
 import yaml
 from yaml.loader import SafeLoader
 import hashlib
 import plotly.io as pio
 pio.renderers.default = "notebook_connected"
-
+import warnings
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
 
