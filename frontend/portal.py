@@ -389,43 +389,55 @@ with tab1:
         try:
             with strl.spinner(" Processing PDF and preparing database injection..."):
                 file_bytes = uploaded_file.read() # On lit les bytes une seule fois ici
+                # --- START OF MODIFICATION BLOCK IN PORTAL.PY (TAB 1) ---
+
+                # 1. Execute the extraction pipeline
                 summary, details = extract_dynamic_pdf_data(file_bytes)
-                
-                defects = []
-                occurrences = []
-                
+
+                # 2. Initialize structures for database injection
+                defects = []          # Maps to public.audit_defects_raw
+                occurrences_dict = {} # Accumulates counts for public.pdf_total_occurrences
+
                 for h in details:
-                    raw_defects = (
-                        h.get("raw_defects_list") or 
-                        h.get("defects") or 
-                        h.get("defects_list") or []
-                    )
-                    dn = h.get("drawing_number") or "Unknown"
+                    drawing_number = h.get("drawing_number", "UNKNOWN")
                     
-                    for d in raw_defects:
-                        code_defaut = d.get("code") or d.get("defect_code") or d.get("name")
-                        points_defaut = d.get("points") or d.get("penalty_points") or 0
-                        
-                        if code_defaut:
+                    # 🔍 Aligned with your pipeline's exact key name: "raw_defects_list"
+                    raw_defects_list = h.get("raw_defects_list") or []
+                    
+                    for code in raw_defects_list:
+                        if code:  # Ensure the validated defect code is not empty
+                            # A. Structuring records for the raw defects table
                             defects.append({
-                                "drawing_number": dn,
-                                "defect_code": code_defaut,
-                                "penalty_points": int(points_defaut)
+                                "drawing_number": drawing_number,
+                                "defect_code": code,
+                                "points": 0,  # Default value, adjust if your constants array handles weight points
+                                "description": f"Defect {code} automatically detected"
                             })
                             
-                            occ_found = next((o for o in occurrences if o["defect_code"] == code_defaut), None)
-                            if occ_found: 
-                                occ_found["total_count"] += 1
-                            else: 
-                                occurrences.append({
-                                    "defect_code": code_defaut, 
-                                    "total_count": 1
-                                })
+                            # B. Aggregating global PDF occurrence counts
+                            if code in occurrences_dict:
+                                occurrences_dict[code] += 1
+                            else:
+                                occurrences_dict[code] = 1
 
-                # Passage explicite de file_bytes en 6ème paramètre
+                # Convert the occurrence tracking dictionary to the list structure expected by save_to_database
+                occurrences = [
+                    {"defect_code": code, "total_count": count} 
+                    for code, count in occurrences_dict.items()
+                ]
+
+                # 3. Streamlit Debugging & Control Status logs
+                st.subheader(" Defect Code Analysis Status")
+                st.info(f" Total raw defect logs extracted: **{len(defects)}**")
+                st.info(f" Unique defect codes identified: **{len(occurrences)}**")
+
+                # 4. Safe data persistence execution into PostgreSQL
+                # (Ensure 'username' and 'file_bytes' variables match your local environment names)
                 save_to_database(summary, details, defects, occurrences, username, file_bytes)
-            
-            st.session_state["injection_success"] = "✅ Data successfully injected into all tables!"
+
+                st.success("✅ Monthly report metrics and defect tables successfully injected into the database!")
+
+                # --- END OF MODIFICATION BLOCK IN PORTAL.PY ---
             st.toast("🎉 Injection réussie avec succès !", icon="✅")
             strl.rerun()
             
