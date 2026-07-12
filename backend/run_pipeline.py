@@ -115,10 +115,9 @@ def clean_and_validate_defect_code(raw_text):
     return code
 
 def parse_defects_with_python(page_text):
-    """Analyses directement le texte extrait d'une page sans réouvrir le fichier."""
+    print("🚀 LA NOUVELLE FONCTION EN MEMOIRE S'EXECUTE !") # Ligne de test
     valid_defects = []
     if page_text:
-        # Découpe le texte de la page ligne par ligne
         for line in page_text.split('\n'):
             validated_code = clean_and_validate_defect_code(line)
             if validated_code:
