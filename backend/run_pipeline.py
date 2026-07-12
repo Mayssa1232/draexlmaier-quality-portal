@@ -6,6 +6,7 @@ import re
 import time
 import streamlit as st
 from pypdf import PdfReader
+from pdf_parser import parse_defects_with_python
 
 def get_db_connection():
     return psycopg2.connect(
@@ -43,10 +44,9 @@ def clean_json_response(raw_text):
         return raw_text
 
 
-# --- AJOUT DU REGEX STRICT ET DE LA LISTE D'EXCLUSION AU NIVEAU GLOBAL ---
-import re
+# --- LOGIQUE DU PARSEUR INTEGRÉE DIRECTEMENT ICI ---
 
-# --- LE REGEX STRICT ET LA LISTE D'EXCLUSION QUE TU AS MODIFIÉS ---
+# Ton regex strict et ta liste d'exclusion
 DEFECT_PATTERN = re.compile(r'\b\d\.\d+(?:\.\d+)*[A-Z]\b|\b2[A-N]\b')
 EXCLUDE_KEYWORDS = ["JIRA", "CP22", "TICKET", "SOLL", "IST"]
 
@@ -90,64 +90,34 @@ VALID_DEFECT_CODES = {
 }
 
 def clean_and_validate_defect_code(raw_text):
-    """Filtre absolu révisé : Interdit les codes de titres de section sans point."""
     match = DEFECT_PATTERN.search(raw_text)
     if not match:
         return None
-        
     code = match.group(0)
     upper_line = raw_text.upper()
-    
     if any(keyword in upper_line for keyword in EXCLUDE_KEYWORDS):
         return None
-
     if code not in VALID_DEFECT_CODES:
         return None
-        
     return code
 
-# --- RÉINTÉGRATION DE LA FONCTION QUE PIPELINE RECHERCHE ---
-def parse_defects_with_python(pdf_path_or_text):
-    """
-    Fonction principale appelée par le pipeline pour parser les défauts.
-    Elle utilise ta fonction de validation stricte définie juste au-dessus.
-    """
+def parse_defects_with_python(pdf_path):
+    """Lit le PDF et applique le filtrage strict ligne par ligne."""
     valid_defects = []
-    
-    # Si c'est directement du texte extrait (dépend de comment ton pipeline l'appelait)
-    if isinstance(pdf_path_or_text, str) and not pdf_path_or_text.endswith('.pdf'):
-        lines = pdf_path_or_text.split('\n')
-        for line in lines:
-            validated_code = clean_and_validate_defect_code(line)
-            if validated_code:
-                valid_defects.append(validated_code)
-                
-    # Si c'est un chemin vers un fichier PDF (ex: avec PyPDF2 ou pdfplumber)
-    else:
-        try:
-            import pdfplumber
-            with pdfplumber.open(pdf_path_or_text) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        for line in text.split('\n'):
-                            validated_code = clean_and_validate_defect_code(line)
-                            if validated_code:
-                                valid_defects.append(validated_code)
-        except ImportError:
-            # Fallback vers PyPDF2 si pdfplumber n'est pas installé
-            import PyPDF2
-            with open(pdf_path_or_text, 'rb') as f:
-                reader = PyPDF2.PdfReader(f)
-                for page in reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        for line in text.split('\n'):
-                            validated_code = clean_and_validate_defect_code(line)
-                            if validated_code:
-                                valid_defects.append(validated_code)
-                                
+    try:
+        import pdfplumber
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    for line in text.split('\n'):
+                        validated_code = clean_and_validate_defect_code(line)
+                        if validated_code:
+                            valid_defects.append(validated_code)
+    except Exception as e:
+        print(f"Erreur d'extraction : {str(e)}")
     return valid_defects
+# --------------------------------------------------
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
     """Analyse le PDF et extrait de manière déterministe le résumé et le détail des faisceaux."""
