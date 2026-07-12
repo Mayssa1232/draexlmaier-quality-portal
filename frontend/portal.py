@@ -10,6 +10,8 @@ import warnings
 import yaml
 from yaml.loader import SafeLoader
 import hashlib
+import plotly.io as pio
+pio.renderers.default = "notebook_connected"
 
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
@@ -505,7 +507,7 @@ else:
                                     xaxis=dict(showgrid=False, categoryorder='total descending'),
                                     yaxis=dict(gridcolor='rgba(255,255,255,0.1)', range=[0, 100])
                                 )
-                                strl.plotly_chart(fig, use_container_width=True)
+                                strl.plotly_chart(fig, width="stretch")
                                 
                                 # Calcul de la moyenne pour CE mois précis
                                 global_qk_avg = df_dash['qk_avg'].mean()
@@ -559,7 +561,7 @@ else:
                                             xaxis=dict(showgrid=False, categoryorder='total descending'),
                                             yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
                                         )
-                                        strl.plotly_chart(fig_occ, use_container_width=True)
+                                        strl.plotly_chart(fig, width="stretch")
                                     else:
                                         strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
                             else:
