@@ -6,6 +6,7 @@ import re
 import time
 import streamlit as st
 from pypdf import PdfReader
+from sqlalchemy import create_engine  # <-- Ajout de l'import pour le moteur
 
 def get_db_connection():
     return psycopg2.connect(
@@ -15,6 +16,19 @@ def get_db_connection():
         password=st.secrets["DB_PASS"],
         port=st.secrets["DB_PORT"]
     )
+
+def get_sqlalchemy_engine():
+    """Crée un moteur SQLAlchemy pour que Pandas (pd.read_sql) 
+    puisse lire la base de données sans provoquer de Segmentation fault."""
+    user = st.secrets["DB_USER"]
+    password = st.secrets["DB_PASS"]
+    host = st.secrets["DB_HOST"]
+    port = st.secrets["DB_PORT"]
+    dbname = st.secrets["DB_NAME"]
+    
+    # Construction de l'URL de connexion PostgreSQL
+    url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    return create_engine(url)
 
 def call_groq_cloud(prompt):
     """Envoie une requête HTTP synchrone à l'API Groq Cloud en utilisant les secrets."""
