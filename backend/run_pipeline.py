@@ -6,7 +6,6 @@ import re
 import time
 import streamlit as st
 from pypdf import PdfReader
-from pdf_parser import parse_defects_with_python
 
 def get_db_connection():
     return psycopg2.connect(
