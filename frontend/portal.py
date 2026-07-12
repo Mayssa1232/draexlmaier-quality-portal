@@ -471,7 +471,7 @@ else:
         else:
             strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis.")
                     
-    # --- DASHBOARD ---
+   # --- DASHBOARD ---
     with tab3:
         strl.header("Performance Dashboard")
         
@@ -489,13 +489,12 @@ else:
                         selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
                         strl.markdown("---")
                         
-                        # Tes sous-onglets radio d'origine
+                        # Onglets radio
                         dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
                         strl.markdown("---")
                         
                         # --- VUE 1 : QUALITY CLASS AVERAGE PER PLANT ---
                         if dashboard_subtab == "Quality Class average per plant":
-                            # Requête filtrée par le mois sélectionné
                             query_qk = "SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = %s"
                             df_dash = pd.read_sql(query_qk, conn, params=[selected_month])
                             
@@ -505,7 +504,7 @@ else:
                                     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                     font_color="#ffffff", title_font_color="#ffffff",
                                     xaxis=dict(showgrid=False, categoryorder='total descending'),
-                                    yaxis=dict(gridcolor='rgba(255,255,255,0.1)', range=[0, 100])
+                                    yaxis=dict(gridcolor='rgba(255,255,255,0.1)') # Zoom dynamique et automatique activé ici !
                                 )
                                 strl.plotly_chart(fig, width="stretch")
                                 
@@ -522,7 +521,6 @@ else:
                                 
                         # --- VUE 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
                         elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-                            # Requête jointe filtrée par le mois sélectionné
                             query_occ = """
                                 SELECT s.plant, o.defect_code, o.total_count 
                                 FROM public.pdf_total_occurrences o 
@@ -541,11 +539,9 @@ else:
                                     
                                 with col_chart:
                                     if selected_plant == "All Plants":
-                                        # Somme de tous les defect codes pour TOUTES les plants de ce mois
                                         df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
                                         chart_title = f"Total Occurrences per Defect Code - Combined Plants ({selected_month})"
                                     else:
-                                        # Filtrage pour une seule plant sur ce mois
                                         df_filtered = df_occ[df_occ['plant'] == selected_plant]
                                         chart_title = f"Occurrences per Defect Code - Plant: {selected_plant} ({selected_month})"
                                     
@@ -561,7 +557,7 @@ else:
                                             xaxis=dict(showgrid=False, categoryorder='total descending'),
                                             yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
                                         )
-                                        strl.plotly_chart(fig, width="stretch")
+                                        strl.plotly_chart(fig_occ, width="stretch")
                                     else:
                                         strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
                             else:
