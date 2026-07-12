@@ -14,7 +14,6 @@ pio.renderers.default = "notebook_connected"
 import warnings
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
-from backend.run_pipeline import extract_dynamic_pdf_data, save_to_database, get_db_connection, get_sqlalchemy_engine
 
 # Alias for compatibility with your existing workspace code
 strl = st
