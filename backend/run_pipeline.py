@@ -307,6 +307,10 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 raw_page_data = call_groq_cloud(prompt_single_page)
                 harness_obj = json.loads(clean_json_response(raw_page_data))
                 
+                # SÉCURITÉ : Si l'objet retourné n'est pas un dictionnaire, on force un dictionnaire vide
+                if not isinstance(harness_obj, dict):
+                    harness_obj = {}
+                
                 drawing_no = str(harness_obj.get("drawing_number", "")).strip()
                 
                 # Système d'appariement robuste clé-valeur avec l'index maître
@@ -336,8 +340,6 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
 
                 harness_obj["raw_defects_list"] = extracted_defects
                 harness_obj["defect_count"] = len(extracted_defects)
-
-                # Solution temporaire sécurisée (0 points par défaut) pour éviter le crash de type
                 harness_obj["defect_points"] = 0
                                 
                 all_harnesses.append(harness_obj)
@@ -351,25 +353,6 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                     time.sleep(wait_time + 1.5)
                 else:
                     print(f"⚠️ Erreur de traitement ignorée page {i+1} : {e}", flush=True)
+                    # SÉCURITÉ : On s'assure que success passe à True pour ne pas boucler à l'infini sur la même page en cas d'erreur fatale
                     success = True  
                     time.sleep(3.0)
-
-    # Sécurisation des métriques globales calculées
-    if all_harnesses:
-        try:
-            summary_data["QK_min"] = float(str(summary_data.get("QK_min", 0.0)).replace(",", "."))
-            summary_data["QK_avg"] = float(str(summary_data.get("QK_avg", 0.0)).replace(",", "."))
-            summary_data["QK_max"] = float(str(summary_data.get("QK_max", 0.0)).replace(",", "."))
-        except ValueError:
-            scores = [h['QK_score'] for h in all_harnesses]
-            summary_data["QK_min"] = min(scores) if scores else 0.0
-            summary_data["QK_avg"] = sum(scores)/len(scores) if scores else 0.0
-            summary_data["QK_max"] = max(scores) if scores else 0.0
-
-        if summary_data.get("audits_count") == 0:
-            summary_data["audits_count"] = len(all_harnesses)
-
-    if "user_email" not in summary_data:
-        summary_data["user_email"] = None
-
-    return summary_data, all_harnesses
