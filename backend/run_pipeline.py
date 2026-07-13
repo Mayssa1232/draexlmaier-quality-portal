@@ -126,7 +126,7 @@ def parse_defects_with_python(page_text):
 # --------------------------------------------------
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
-    """Analyse le PDF et extrait de manière déterministe le résumé et le détail des faisceaux."""
+    """Analyzes the PDF and deterministically extracts the summary and detailed harness data."""
     doc = fitz.open(stream=pdf_file_bytes, filetype="pdf")
     pages_text = []
     
@@ -142,12 +142,12 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     doc.close()
 
     if not pages_text:
-        raise Exception("Le PDF est vide ou corrompu.")
+        raise Exception("The PDF is empty or corrupted.")
 
     # =========================================================================
-    # STEP A: Extraction du Résumé Global (Page 1)
+    # STEP A: Global Summary Extraction (Page 1)
     # =========================================================================
-    print("⚡ [1/3] Extraction du Résumé Global...", flush=True)
+    print("⚡ [1/3] Extracting Global Summary...", flush=True)
     first_page_text = pages_text[0]
     
     prompt_summary = f"""
@@ -187,18 +187,17 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 wait_time = float(match_wait.group(1)) if match_wait else 5.0
                 if match_wait and match_wait.group(2) == "ms":
                     wait_time = wait_time / 1000.0
-                print(f"⏳ Limitation de débit (Page 1). Attente de {wait_time + 1}s...", flush=True)
+                print(f"⏳ Rate limiting (Page 1). Waiting for {wait_time + 1}s...", flush=True)
                 time.sleep(wait_time + 1.0)
             else:
                 raise e
 
     time.sleep(4.5)
-    # (La suite de ton code d'extraction reste identique...)
 
     # =========================================================================
-    # STEP B: Extraction de l'Index Référentiel Maître (Page 2)
+    # STEP B: Master Reference Index Creation (Page 2)
     # =========================================================================
-    print("⚡ [2/3] Création du registre de correspondance (Page 2)...", flush=True)
+    print("⚡ [2/3] Creating matching registry (Page 2)...", flush=True)
     page_2_text = pages_text[1]
     
     prompt_master_table = f"""
@@ -231,7 +230,6 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             for h in master_data.get("harnesses", []):
                 dn_key = str(h.get("drawing_number", "")).strip()
                 if dn_key:
-                    # Traitement sécurisé du score QK (remplacement virgule par point)
                     qk_raw = str(h.get("QK_score", "0.0")).replace(",", ".").strip()
                     try:
                         qk_val = float(qk_raw)
@@ -244,18 +242,18 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             break
         except Exception as e:
             if "Rate limit reached" in str(e):
-                print("⏳ Temporisation sur l'analyse maîtresse (Page 2)...", flush=True)
+                print("⏳ Timeout on master analysis (Page 2)...", flush=True)
                 time.sleep(6.0)
             else:
-                print(f"⚠️ Impossible de créer le registre Page 2 : {e}. Mode de secours activé.", flush=True)
+                print(f"⚠️ Unable to create Page 2 registry: {e}. Fallback mode activated.", flush=True)
                 break
 
     time.sleep(4.5)
 
     # =========================================================================
-    # STEP C: Extraction itérative des Faisceaux page par page (Pages 3+)
+    # STEP C: Iterative Page-by-Page Harness Extraction (Pages 3+)
     # =========================================================================
-    print("⚡ [3/3] Extraction itérative des Faisceaux...", flush=True)
+    print("⚡ [3/3] Iterative Harness Extraction...", flush=True)
     all_harnesses = []
 
     for i in range(1, len(pages_text)):
@@ -302,18 +300,16 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         
         success = False
         while not success:
-            print(f"📄 Analyse en cours de la Page {i+1}/{len(pages_text)}...", flush=True)
+            print(f"📄 Processing Page {i+1}/{len(pages_text)}...", flush=True)
             try:
                 raw_page_data = call_groq_cloud(prompt_single_page)
                 harness_obj = json.loads(clean_json_response(raw_page_data))
                 
-                # SÉCURITÉ : Si l'objet retourné n'est pas un dictionnaire, on force un dictionnaire vide
                 if not isinstance(harness_obj, dict):
                     harness_obj = {}
                 
                 drawing_no = str(harness_obj.get("drawing_number", "")).strip()
                 
-                # Système d'appariement robuste clé-valeur avec l'index maître
                 matched_master = None
                 for key, val in harness_registry.items():
                     if key in drawing_no or drawing_no in key:
@@ -324,14 +320,12 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                     harness_obj["audit_type"] = matched_master["audit_type"]
                     harness_obj["QK_score"] = matched_master["QK_score"]
                 else:
-                    # Redressement de type sécurisé si absent de l'index maître
                     try:
                         qk_raw = str(harness_obj.get("QK_score", "0.0")).replace(",", ".").strip()
                         harness_obj["QK_score"] = float(qk_raw)
                     except (ValueError, TypeError):
                         harness_obj["QK_score"] = 0.0
                 
-                # Conversion sécurisée des entiers de comptage pour éviter les crashs à l'injection
                 for field in ["count_wires", "count_contacts", "count_components"]:
                     try:
                         harness_obj[field] = int(str(harness_obj.get(field, "0")).strip())
@@ -343,7 +337,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 harness_obj["defect_points"] = 0
                                 
                 all_harnesses.append(harness_obj)
-                success = True  
+                success = True 
                 time.sleep(4.5)
                 
             except Exception as e:
@@ -352,7 +346,31 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                     wait_time = float(match_wait.group(1)) if match_wait else 5.0
                     time.sleep(wait_time + 1.5)
                 else:
-                    print(f"⚠️ Erreur de traitement ignorée page {i+1} : {e}", flush=True)
-                    # SÉCURITÉ : On s'assure que success passe à True pour ne pas boucler à l'infini sur la même page en cas d'erreur fatale
+                    print(f"⚠️ Processing error ignored on page {i+1}: {e}", flush=True)
                     success = True  
                     time.sleep(3.0)
+
+    # =========================================================================
+    # PIPELINE RETURN GUARD LAUNCHPAD
+    # =========================================================================
+    if not all_harnesses:
+        print("❌ Critical Failure: Zero harness items were populated.", flush=True)
+        return {"audits_count": 0, "user_email": None}, []
+
+    try:
+        summary_data["QK_min"] = float(str(summary_data.get("QK_min", 0.0)).replace(",", "."))
+        summary_data["QK_avg"] = float(str(summary_data.get("QK_avg", 0.0)).replace(",", "."))
+        summary_data["QK_max"] = float(str(summary_data.get("QK_max", 0.0)).replace(",", "."))
+    except (ValueError, TypeError):
+        scores = [h.get('QK_score', 0.0) for h in all_harnesses]
+        summary_data["QK_min"] = min(scores) if scores else 0.0
+        summary_data["QK_avg"] = sum(scores)/len(scores) if scores else 0.0
+        summary_data["QK_max"] = max(scores) if scores else 0.0
+
+    if summary_data.get("audits_count") == 0 or "audits_count" not in summary_data:
+        summary_data["audits_count"] = len(all_harnesses)
+
+    if "user_email" not in summary_data:
+        summary_data["user_email"] = None
+
+    return summary_data, all_harnesses
