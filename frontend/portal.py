@@ -340,9 +340,9 @@ else:
     st.session_state["role"] = user_data.get('role', 'user')
     st.session_state['user_email'] = user_data.get('email', '')
     
-    with strl.sidebar:
+    with st.sidebar:
         if os.path.exists("image_609dcc.png"): 
-            strl.image("image_609dcc.png", use_container_width=True)
+            st.image("image_609dcc.png", width="stretch")
         strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
