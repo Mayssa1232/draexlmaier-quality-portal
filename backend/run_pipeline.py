@@ -274,9 +274,27 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         if not is_valid_audit_page:
             continue
 
-        extracted_defects = parse_defects_with_python(page_content) 
-        if not extracted_defects:
+        # ---------------------------------------------------------------------
+        # 1. ESSAI DE PARSING DES DÉFAUTS (Isolé et sécurisé)
+        # ---------------------------------------------------------------------
+        try:
+            extracted_defects = parse_defects_with_python(page_content)
+            if not extracted_defects:
+                extracted_defects = []
+        except Exception as defect_err:
+            # Si le parser de défauts plante, on ne bloque pas tout le pipeline !
+            # On log l'erreur et on initialise une liste vide pour continuer.
+            print(f"⚠️ Erreur de parsing des défauts sur la page {i+1} (ignorée) : {defect_err}", flush=True)
             extracted_defects = []
+
+        # ---------------------------------------------------------------------
+        # 2. EXTRACTION DU RESTE DES DONNÉES (Le faisceau s'injectera quand même)
+        # ---------------------------------------------------------------------
+        prompt_single_page = f"""
+        Analyze this unstructured layout text from ONE single page...
+        """
+        
+        # ... (Le reste de ton code d'extraction Groq continue ici) ...
         
         prompt_single_page = f"""
         Analyze this unstructured layout text from ONE single page of an automotive wire harness product audit report.
