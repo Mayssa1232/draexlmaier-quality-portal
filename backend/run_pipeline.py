@@ -276,7 +276,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
 
         extracted_defects = parse_defects_with_python(page_content) 
         if not extracted_defects:
-        extracted_defects = []
+            extracted_defects = []
         
         prompt_single_page = f"""
         Analyze this unstructured layout text from ONE single page of an automotive wire harness product audit report.
