@@ -263,12 +263,12 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         if "ergebnisübersicht" in page_content_lower or "jahresübersicht" in page_content_lower:
             continue
 
+        # Version universelle (Allemand, Français, Anglais)
         is_valid_audit_page = (
-            "fahrzeug" in page_content_lower or
-            "sachnummer" in page_content_lower or
-            "sach-nr" in page_content_lower or
-            "auditor" in page_content_lower or
-            "tabelle" in page_content_lower
+            "fahrzeug" in page_content_lower or "vehicule" in page_content_lower or "vehicle" in page_content_lower or
+            "sachnummer" in page_content_lower or "sach-nr" in page_content_lower or "part number" in page_content_lower or "reference" in page_content_lower or
+            "auditor" in page_content_lower or "auditeur" in page_content_lower or
+            "tabelle" in page_content_lower or "tableau" in page_content_lower or "table" in page_content_lower
         )
         
         if not is_valid_audit_page:
