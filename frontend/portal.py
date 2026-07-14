@@ -205,6 +205,7 @@ def clear_production_database():
                 raise e
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
+# --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username, file_bytes):
     # Sécurisation préventive si les listes sont None au lieu de listes vides
     if not defects_list:
@@ -219,8 +220,6 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 pdf_hash = hashlib.md5(file_bytes).hexdigest()
                 
                 # 2. Insert summary only if this exact report/file combination doesn't exist for the plant/supplier
-                # Note: 'supplier' est conservé ici uniquement s'il est requis par ta structure de table actuelle,
-                # mais si tu l'as supprimé de ta table, pense à le retirer de cette requête également.
                 cur.execute("""
                     INSERT INTO public.monthly_summaries
                     (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count, pdf_hash)
@@ -306,14 +305,22 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
                 raise e
 
-    else:
-        name = st.session_state["name"]
-        username = st.session_state["username"]
-        
-        # Secure role mapping from database architecture
-        user_data = auth_dict["credentials"]["usernames"].get(username, {})
-        st.session_state["role"] = user_data.get('role', 'user')
-        st.session_state['user_email'] = user_data.get('email', '')
+
+# --- USER SESSION & AUTHENTICATION HANDLING ---
+# (Ce bloc est maintenant détaché de la fonction et associé à ton statut de connexion)
+if not st.session_state.get("authentication_status"):
+    # Cas où l'utilisateur n'est pas connecté
+    st.warning("Veuillez vous connecter pour accéder au portail.")
+    
+else:
+    # Cas où l'utilisateur est bien connecté (Ton bloc else initial, désormais valide)
+    name = st.session_state["name"]
+    username = st.session_state["username"]
+    
+    # Secure role mapping from database architecture
+    user_data = auth_dict["credentials"]["usernames"].get(username, {})
+    st.session_state["role"] = user_data.get('role', 'user')
+    st.session_state['user_email'] = user_data.get('email', '')
         
     with st.sidebar:
         if os.path.exists("image_609dcc.png"): 
