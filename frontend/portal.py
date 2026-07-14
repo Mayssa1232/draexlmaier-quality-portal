@@ -206,6 +206,12 @@ def clear_production_database():
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username, file_bytes):
+    # Sécurisation préventive si les listes sont None au lieu de listes vides
+    if not defects_list:
+        defects_list = []
+    if not occurrences_list:
+        occurrences_list = []
+
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             try:
@@ -213,13 +219,15 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 pdf_hash = hashlib.md5(file_bytes).hexdigest()
                 
                 # 2. Insert summary only if this exact report/file combination doesn't exist for the plant/supplier
+                # Note: 'supplier' est conservé ici uniquement s'il est requis par ta structure de table actuelle,
+                # mais si tu l'as supprimé de ta table, pense à le retirer de cette requête également.
                 cur.execute("""
                     INSERT INTO public.monthly_summaries
                     (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count, pdf_hash)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                     ON CONFLICT (plant, supplier, report_month, report_year, pdf_hash) DO NOTHING
                     RETURNING summary_id;
-                """, (summary['supplier'], summary['plant'], summary['country'],
+                """, (summary.get('supplier', 'Interne'), summary['plant'], summary['country'],
                     str(summary['report_month']), str(summary['report_year']),
                     summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count'], pdf_hash))
                 
@@ -233,103 +241,70 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
 
                 audit_id_map = {}
                 for r in details:
+                    # Sécurité : Si le QK_score ou les compteurs sont absents, on applique des valeurs par défaut cohérentes
+                    qk_score = r.get('QK_score')
+                    defect_count = r.get('defect_count', 0)
+                    
+                    # Si aucun défaut n'est détecté, on s'assure que le score est parfait par défaut (1.0)
+                    if (qk_score is None or qk_score == 0.0) and defect_count == 0:
+                        qk_score = 1.0
+                    elif qk_score is None:
+                        qk_score = 0.0
+
                     cur.execute("""
                         INSERT INTO public.harness_audits
                         (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
                     """, (
                         summary_id, r.get('vehicle_type'), r.get('drawing_number'), r.get('part_description'), 
-                        r.get('QK_score'), r.get('defect_count'), r.get('defect_points'), username, 
-                        r.get('calculation_factor'), r.get('count_wires'), r.get('count_contacts'), 
-                        r.get('count_components'), r.get('audit_type')
+                        qk_score, defect_count, r.get('defect_points', 0), username, 
+                        r.get('calculation_factor', 0.7), r.get('count_wires', 0), r.get('count_contacts', 0), 
+                        r.get('count_components', 0), r.get('audit_type', 'P')
                     ))
                     generated_id = cur.fetchone()[0]
                     
                     dn = r.get('drawing_number')
                     if dn:
-                        if dn not in audit_id_map:
-                            audit_id_map[dn] = []
-                        audit_id_map[dn].append(generated_id)
+                        dn_clean = str(dn).strip()
+                        if dn_clean not in audit_id_map:
+                            audit_id_map[dn_clean] = []
+                        audit_id_map[dn_clean].append(generated_id)
 
-                for d in defects_list:
-                    dn_defect = d.get('drawing_number', '')
-                    target_audit_id = None
-                    
-                    for registered_dn, ids in audit_id_map.items():
-                        if registered_dn in dn_defect or dn_defect in registered_dn:
-                            target_audit_id = ids[0]
-                            break
-                            
-                    if target_audit_id:
-                        cur.execute("""
-                            INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
-                            VALUES (%s, %s, %s);
-                        """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
+                # 3. Insertion des détails de défauts (Uniquement s'il y en a)
+                if defects_list:
+                    for d in defects_list:
+                        dn_defect = str(d.get('drawing_number', '')).strip()
+                        target_audit_id = None
+                        
+                        for registered_dn, ids in audit_id_map.items():
+                            if registered_dn in dn_defect or dn_defect in registered_dn:
+                                target_audit_id = ids[0]
+                                break
+                                
+                        if target_audit_id:
+                            cur.execute("""
+                                INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
+                                VALUES (%s, %s, %s);
+                            """, (target_audit_id, d.get('defect_code'), d.get('penalty_points', 0)))
 
-                for o in occurrences_list:
-                    cur.execute("""
-                        INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
-                        VALUES (%s, %s, %s);
-                    """, (summary_id, o.get('defect_code'), o.get('total_count')))
+                # 4. Insertion des occurrences globales (Uniquement s'il y en a)
+                if occurrences_list:
+                    for o in occurrences_list:
+                        defect_code = o.get('defect_code')
+                        if defect_code:  # Sécurité pour éviter d'insérer des lignes vides
+                            cur.execute("""
+                                INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
+                                VALUES (%s, %s, %s);
+                            """, (summary_id, defect_code, o.get('total_count', 0)))
 
+                # Si tout s'est bien passé, on valide définitivement la transaction
                 conn.commit()
+                print("🎉 Database injection completed successfully (even with zero defects)!", flush=True)
+
             except Exception as e:
                 conn.rollback()
+                print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
                 raise e
-
-# --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
-if not st.session_state.get("authentication_status"):
-    st.session_state["tabs_initialized"] = False
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>Quality Audit Portal</h3>", unsafe_allow_html=True)
-        
-        auth_tab1, auth_tab2 = st.tabs([" Sign In", " Create Account"])
-        
-        with auth_tab1:
-            authenticator.login(location='main')
-            if st.session_state.get("authentication_status") is False:
-                st.error("Invalid username or password.")
-            elif st.session_state.get("authentication_status") is None:
-                st.info("Please log in to access the platform.")
-                
-        with auth_tab2:
-            st.subheader("Register New Auditor Account")
-            with st.form("registration_form", clear_on_submit=True):
-                new_username = st.text_input("Username").strip().lower()
-                new_name = st.text_input("Full Name")
-                new_email = st.text_input("Professional Email Address").strip()
-                new_password = st.text_input("Password", type="password")
-                confirm_password = st.text_input("Confirm Password", type="password")
-                submit_reg = st.form_submit_button("Sign Up")
-                
-                if submit_reg:
-                    if not new_username or not new_name or not new_email or not new_password:
-                        st.error("All fields are required.")
-                    elif new_password != confirm_password:
-                        st.error("Passwords do not match.")
-                    elif "@" not in new_email:
-                        st.error("Please enter a valid email address.")
-                    else:
-                        hashed_password = stauth.Hasher.hash(new_password)
-                        try:
-                            with get_db_connection() as conn:
-                                with conn.cursor() as cur:
-                                    cur.execute("SELECT username FROM users WHERE username = %s OR email = %s", (new_username, new_email))
-                                    if cur.fetchone():
-                                        st.error("This username or email is already taken.")
-                                    else:
-                                        cur.execute(
-                                            "INSERT INTO users (username, name, password_hash, email, role) VALUES (%s, %s, %s, %s, 'user')",
-                                            (new_username, new_name, hashed_password, new_email)
-                                        )
-                                        conn.commit()
-                                        st.cache_data.clear()  # Evict cached credentials safely
-                                        st.success("Account created successfully! You can now log in.")
-                                        st.rerun()
-                        except Exception as e:
-                            st.error(f"Registration failed: {e}")
 
 else:
     name = st.session_state["name"]
