@@ -240,7 +240,7 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
 
                 audit_id_map = {}
                 for r in details:
-                    # Sécurité : Si le QK_score ou les compteurs sont absents, on applique des valeurs par défaut cohérentes
+                    # Sécurité : Si le QK_score ou les compteurs de défauts sont absents
                     qk_score = r.get('QK_score')
                     defect_count = r.get('defect_count', 0)
                     
@@ -269,7 +269,7 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                             audit_id_map[dn_clean] = []
                         audit_id_map[dn_clean].append(generated_id)
 
-                # 3. Insertion des détails de défauts (Uniquement s'il y en a)
+                # 3. Insertion des détails de défauts (Uniquement s'il y en a de listés)
                 if defects_list:
                     for d in defects_list:
                         dn_defect = str(d.get('drawing_number', '')).strip()
@@ -290,30 +290,74 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 if occurrences_list:
                     for o in occurrences_list:
                         defect_code = o.get('defect_code')
-                        if defect_code:  # Sécurité pour éviter d'insérer des lignes vides
+                        if defect_code:  # Sécurité pour éviter d'insérer des lignes d'occurrences vides
                             cur.execute("""
                                 INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
                                 VALUES (%s, %s, %s);
                             """, (summary_id, defect_code, o.get('total_count', 0)))
 
-                # Si tout s'est bien passé, on valide définitivement la transaction
                 conn.commit()
                 print("🎉 Database injection completed successfully (even with zero defects)!", flush=True)
-
             except Exception as e:
                 conn.rollback()
                 print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
                 raise e
 
-
-# --- USER SESSION & AUTHENTICATION HANDLING ---
-# (Ce bloc est maintenant détaché de la fonction et associé à ton statut de connexion)
+# --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
 if not st.session_state.get("authentication_status"):
-    # Cas où l'utilisateur n'est pas connecté
-    st.warning("Veuillez vous connecter pour accéder au portail.")
-    
+    st.session_state["tabs_initialized"] = False
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center; color: #00ffd0;'>D-DRÄXLMAIER</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>Quality Audit Portal</h3>", unsafe_allow_html=True)
+        
+        auth_tab1, auth_tab2 = st.tabs([" Sign In", " Create Account"])
+        
+        with auth_tab1:
+            authenticator.login(location='main')
+            if st.session_state.get("authentication_status") is False:
+                st.error("Invalid username or password.")
+            elif st.session_state.get("authentication_status") is None:
+                st.info("Please log in to access the platform.")
+                
+        with auth_tab2:
+            st.subheader("Register New Auditor Account")
+            with st.form("registration_form", clear_on_submit=True):
+                new_username = st.text_input("Username").strip().lower()
+                new_name = st.text_input("Full Name")
+                new_email = st.text_input("Professional Email Address").strip()
+                new_password = st.text_input("Password", type="password")
+                confirm_password = st.text_input("Confirm Password", type="password")
+                submit_reg = st.form_submit_button("Sign Up")
+                
+                if submit_reg:
+                    if not new_username or not new_name or not new_email or not new_password:
+                        st.error("All fields are required.")
+                    elif new_password != confirm_password:
+                        st.error("Passwords do not match.")
+                    elif "@" not in new_email:
+                        st.error("Please enter a valid email address.")
+                    else:
+                        hashed_password = stauth.Hasher.hash(new_password)
+                        try:
+                            with get_db_connection() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute("SELECT username FROM users WHERE username = %s OR email = %s", (new_username, new_email))
+                                    if cur.fetchone():
+                                        st.error("This username or email is already taken.")
+                                    else:
+                                        cur.execute(
+                                            "INSERT INTO users (username, name, password_hash, email, role) VALUES (%s, %s, %s, %s, 'user')",
+                                            (new_username, new_name, hashed_password, new_email)
+                                        )
+                                        conn.commit()
+                                        st.cache_data.clear()  # Evict cached credentials safely
+                                        st.success("Account created successfully! You can now log in.")
+                                        st.rerun()
+                        except Exception as e:
+                            st.error(f"Registration failed: {e}")
+
 else:
-    # Cas où l'utilisateur est bien connecté (Ton bloc else initial, désormais valide)
     name = st.session_state["name"]
     username = st.session_state["username"]
     
