@@ -306,15 +306,15 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
                 raise e
 
-else:
-    name = st.session_state["name"]
-    username = st.session_state["username"]
-    
-    # Secure role mapping from database architecture
-    user_data = auth_dict["credentials"]["usernames"].get(username, {})
-    st.session_state["role"] = user_data.get('role', 'user')
-    st.session_state['user_email'] = user_data.get('email', '')
-    
+    else:
+        name = st.session_state["name"]
+        username = st.session_state["username"]
+        
+        # Secure role mapping from database architecture
+        user_data = auth_dict["credentials"]["usernames"].get(username, {})
+        st.session_state["role"] = user_data.get('role', 'user')
+        st.session_state['user_email'] = user_data.get('email', '')
+        
     with st.sidebar:
         if os.path.exists("image_609dcc.png"): 
             st.image("image_609dcc.png", width="stretch")
