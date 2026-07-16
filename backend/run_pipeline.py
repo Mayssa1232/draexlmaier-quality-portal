@@ -150,26 +150,40 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     print("⚡ [1/3] Extracting Global Summary...", flush=True)
     first_page_text = pages_text[0]
     
-    prompt_summary = f"""
+    prompt_summary = f """
     You are a rigid Data Engineering Extraction Pipeline for Volkswagen/Dräxlmaier automotive quality audits.
     Your sole task is to convert the global monthly summary page text into a precise JSON object matching a strict schema.
 
-    CRITICAL INSTRUCTIONS FOR DYNAMIC PLANT & QK EXTRACTION:
-    1. PLANT NAME LOCATION: Look at the main results table section (usually under 'Fertigungsstätten' or listing numbered sites like '1. A- ...'). Extract the exact full plant name found there.
-    2. QK METRICS LOCATION: Extract the numerical values (QK min, QK avg, QK max) aligned with that plant. Replace any commas ',' with dots '.' for numerical consistency.
-    3. DATE CONVERSION: Convert the German month name found under 'Monat / Jahr' (e.g., 'Juni 2026' -> '06', 'Mai' -> '05').
+    CRITICAL INSTRUCTIONS FOR DYNAMIC PLANT, COUNTRY, AND QK EXTRACTION:
+    
+    1. PLANT NAME & COUNTRY LOCATION (HIGH PRIORITY):
+        - Look at the main results table section (usually starting with numbered lines like "1 A- ...", "2 Standort ...").
+        - Example: "1 A- DAD Zrenjanin (Serbien)" -> Plant is "DAD Zrenjanin" (or "Zrenjanin") and Country is "Serbien".
+        - Clean the plant name: Remove any prefixes like "1", "A-", or leading whitespace. Keep the name clean and accurate.
+        - If a country name is inside parentheses next to the plant, extract it into the "country" field (e.g., "(Serbien)" -> "Serbien").
+
+    2. QK METRICS LOCATION & CONVERSION:
+        - Extract the numerical QK metrics (QK min, QK avg, QK max) aligned with the active plant line.
+        - Even if the QK values are "0.0" or "0", extract them as float 0.0. 
+        - Replace any German commas "," with dots "." for float casting (e.g., "0,3" -> 0.3).
+        - "audits_count" is the number of tested harnesses (usually listed in columns like "Anzahl geprüfter Leitungsstränge" or listed as "Ltg.stränge geprüft: (3)"). If not explicitly in a cell next to the plant, look for the total count.
+
+    3. DATE CONVERSION:
+            Convert the German month name under "Monat / Jahr" to a two-digit numeric string.
+            Mapping: Januar->01, Februar->02, März->03, April->04, Mai->05, Juni->06, Juli->07, August->08, September->09, Oktober->10, November->11, Dezember->12.
+        - E-xtract the 4-digit year (e.g., "2026").
 
     Return a comprehensive valid JSON object matching this structure exactly:
     {{
-        "supplier": "Exact company name found (e.g., 'Dräxlmaier Group')",
-        "plant": "Exact plant site name string (e.g., 'SATE El Jem (Tunesien)')",
-        "country": "Extract the country name if present (e.g., 'Tunesien')",
+        "supplier": "Exact company name found under 'Firma' or 'Von' (e.g., 'Dräxlmaier Group')",
+        "plant": "Exact plant site name string (e.g., 'DAD Zrenjanin')",
+        "country": "Extract the country name if present (e.g., 'Serbien')",
         "report_month": "Two-digit month numeric string, e.g. '06'",
         "report_year": "Four-digit year numeric string, e.g. '2026'",
         "QK_min": 0.0,
         "QK_avg": 0.0,
         "QK_max": 0.0,
-        "audits_count": 0
+        "audits_count": 3
     }}
 
     Document Text to analyze (Page 1):
