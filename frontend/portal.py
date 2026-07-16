@@ -12,10 +12,6 @@ import hashlib
 import plotly.io as pio
 pio.renderers.default = "notebook_connected"
 import warnings
-from pathlib import Path
-root_path = Path(__file__).resolve().parent.parent
-if str(root_path) not in sys.path:
-    sys.path.insert(0, str(root_path))
 
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
@@ -32,17 +28,32 @@ if "tabs_initialized" not in st.session_state:
 
 # --- CONFIGURATION DYNAMIQUE DES CHEMINS ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_path = os.path.abspath(os.path.join(current_dir, "..", "backend"))
+# Utilisation de normpath pour nettoyer les ".." et obtenir un chemin propre
+backend_path = os.path.normpath(os.path.join(current_dir, "..", "backend"))
+project_root = os.path.normpath(os.path.join(current_dir, ".."))
 
+# On ajoute le dossier backend ET la racine du projet au sys.path
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
+if project_root not in sys.path:
+    sys.path.insert(1, project_root)
 
-# Import des fonctions du pipeline avec gestion d'erreur
+# Import des fonctions du pipeline avec fallback d'importation
 try:
+    # 1. Tentative d'import direct (via le sys.path.insert de backend)
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
-except (ModuleNotFoundError, ImportError) as e:
-    st.error(f"Erreur de chemin : Impossible de charger les fonctions de 'run_pipeline.py'. Détails : {e}")
-
+except (ModuleNotFoundError, ImportError):
+    try:
+        # 2. Repli sécurisé en spécifiant le package complet (si lancé depuis la racine)
+        from backend.run_pipeline import extract_dynamic_pdf_data, get_db_connection
+    except (ModuleNotFoundError, ImportError) as e:
+        st.error(
+            f"⚠️ **Erreur critique de configuration de l'application**\n\n"
+            f"Le portail n'a pas pu lier le module de traitement `run_pipeline.py`.\n\n"
+            f"**Détails techniques :** `{e}`\n"
+            f"**Chemin cherché :** `{backend_path}`"
+        )
+        st.stop()  # Arrête proprement l'exécution de Streamlit pour éviter une cascade d'erreurs
 # --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
 global_design_css = """
 <style>
