@@ -150,7 +150,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     print("⚡ [1/3] Extracting Global Summary...", flush=True)
     first_page_text = pages_text[0]
     
-    prompt_summary = f """
+    prompt_summary = f"""
     You are a rigid Data Engineering Extraction Pipeline for Volkswagen/Dräxlmaier automotive quality audits.
     Your sole task is to convert the global monthly summary page text into a precise JSON object matching a strict schema.
 
