@@ -265,7 +265,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     time.sleep(4.5)
 
     # =========================================================================
-    # STEP C: Iterative Page-by-Page Harness Extraction (Pages 3+)
+    # STEP C: Iterative Page-by-Page Harness Extraction (Pages 2+)
     # =========================================================================
     print("⚡ [3/3] Iterative Harness Extraction...", flush=True)
     all_harnesses = []
@@ -274,15 +274,18 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         page_content = pages_text[i]
         page_content_lower = page_content.lower()
         
-        if "ergebnisübersicht" in page_content_lower or "jahresübersicht" in page_content_lower:
+        # ❌ MODIFICATION : On ne saute PLUS l'Ergebnisübersicht (Page 2 cruciale pour Zrenjanin)
+        # On ignore uniquement la Jahresübersicht globale
+        if "jahresübersicht" in page_content_lower:
             continue
 
-        # Version universelle (Allemand, Français, Anglais)
+        # Version universelle validant la page d'audits (incluant explicitement l'Ergebnisübersicht)
         is_valid_audit_page = (
             "fahrzeug" in page_content_lower or "vehicule" in page_content_lower or "vehicle" in page_content_lower or
             "sachnummer" in page_content_lower or "sach-nr" in page_content_lower or "part number" in page_content_lower or "reference" in page_content_lower or
             "auditor" in page_content_lower or "auditeur" in page_content_lower or
-            "tabelle" in page_content_lower or "tableau" in page_content_lower or "table" in page_content_lower
+            "tabelle" in page_content_lower or "tableau" in page_content_lower or "table" in page_content_lower or
+            "ergebnisübersicht" in page_content_lower
         )
         
         if not is_valid_audit_page:
@@ -297,40 +300,49 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 extracted_defects = []
         except Exception as defect_err:
             # Si le parser de défauts plante, on ne bloque pas tout le pipeline !
-            # On log l'erreur et on initialise une liste vide pour continuer.
             print(f"⚠️ Erreur de parsing des défauts sur la page {i+1} (ignorée) : {defect_err}", flush=True)
             extracted_defects = []
 
         # ---------------------------------------------------------------------
-        # 2. EXTRACTION DU RESTE DES DONNÉES (Le faisceau s'injectera quand même)
+        # 2. EXTRACTION DU RESTE DES DONNÉES (Prompt de structure optimisé)
         # ---------------------------------------------------------------------
-        prompt_single_page = f"""
-        Analyze this unstructured layout text from ONE single page...
-        """
-        
-        # ... (Le reste de ton code d'extraction Groq continue ici) ...
-        
         prompt_single_page = f"""
         Analyze this unstructured layout text from ONE single page of an automotive wire harness product audit report.
         Extract the item header information. Do NOT attempt to extract the raw defects table list.
 
-        Return a single JSON object matching this format exactly:
+        CRITICAL INSTRUCTIONS FOR ROBUST PARSING (ESPECIALLY WITH PIPES '|' & ZERO DEFECTS):
+        1. IDENTIFY THE HARNESS ITEM:
+            - Look for vehicle codes/projects (e.g., 'PO 426B', 'PO 416').
+            - Extract the full description (e.g., 'CSH LL Cockpit/5666625', 'Autark DC-WANDLER').
+            - Extract the drawing/part number which usually starts with 'TAB' (e.g., 'TAB.026.068.CE', 'TAB_010_619_GR')[cite: 1].
+
+        2. DATA COLUMN EXTRACTION:
+            - The layout often groups rows with pipe delimiters '|'[cite: 1].
+            - Look closely at aligned numerical matrices like: `| 0.0 | 0 | 0 | 167 260 470 0.7 897 | | Z`[cite: 1].
+            - QK_score is the quality score float. If it is explicitly '0.0' or missing alongside 0 defects, treat it correctly according to the report's logic[cite: 1].
+            - Extract 'count_wires', 'count_contacts', and 'count_components' from the combined metrics block (e.g., '167 260 470' means wires=167, contacts=260, components=470)[cite: 1].
+            - Extract the 'calculation_factor' float (e.g., 0.7 or 0.4)[cite: 1].
+            - Audit Type mapping: If 'Z' or 'Zerstörend' is flagged, use 'Z'. If 'P' or 'Partiell', use 'P'[cite: 1].
+
+        Return a single valid JSON object matching this format exactly:
         {{
-            "vehicle_type": "Vehicle/platform name string (e.g., 'VW VN 35S')", 
-            "drawing_number": "Drawing / part number string or Table reference found (e.g., 'TAB_016_471_AQ' or '2643533')", 
-            "part_description": "Assembly specification description string (e.g., 'RL')",
+            "vehicle_type": "Vehicle/platform name string (e.g., 'PO 426B')", 
+            "drawing_number": "Drawing / part number string (e.g., 'TAB.026.068.CE')", 
+            "part_description": "Assembly specification description string (e.g., 'CSH LL Cockpit/5666625')",
             "QK_score": 0.0, 
-            "auditor_name": "Auditor full name string (e.g., 'Braiek Ali')", 
+            "auditor_name": "Auditor full name string (e.g., 'Marki Ildiko')", 
             "calculation_factor": 0.7, 
-            "count_wires": 272, 
-            "count_contacts": 417, 
-            "count_components": 200, 
-            "audit_type": "P"
+            "count_wires": 167, 
+            "count_contacts": 260, 
+            "count_components": 470, 
+            "audit_type": "Z"
         }}
 
         Document Text to analyze (Page {i+1}):
         {page_content}
         """
+        
+        # ... (Ici ton code d'appel à Groq / LLM traite le prompt_single_page) ...
         
         success = False
         while not success:
