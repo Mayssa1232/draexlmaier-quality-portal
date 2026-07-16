@@ -12,6 +12,10 @@ import hashlib
 import plotly.io as pio
 pio.renderers.default = "notebook_connected"
 import warnings
+from pathlib import Path
+root_path = Path(__file__).resolve().parent.parent
+if str(root_path) not in sys.path:
+    sys.path.insert(0, str(root_path))
 
 # Mute standard pandas DBAPI2 connection warnings in logs
 warnings.filterwarnings("ignore", category=UserWarning, module="pandas")
