@@ -26,35 +26,33 @@ st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
-# --- CONFIGURATION DYNAMIQUE DES CHEMINS ---
+# --- DYNAMIC PATH CONFIGURATION ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Utilisation de normpath pour nettoyer les ".." et obtenir un chemin propre
 backend_path = os.path.normpath(os.path.join(current_dir, "..", "backend"))
 project_root = os.path.normpath(os.path.join(current_dir, ".."))
 
-# On ajoute le dossier backend ET la racine du projet au sys.path
+# Add backend directory and project root to sys.path
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 if project_root not in sys.path:
     sys.path.insert(1, project_root)
 
-# Import des fonctions du pipeline avec fallback d'importation
+# Import pipeline functions with safe fallback
 try:
-    # 1. Tentative d'import direct (via le sys.path.insert de backend)
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
 except (ModuleNotFoundError, ImportError):
     try:
-        # 2. Repli sécurisé en spécifiant le package complet (si lancé depuis la racine)
         from backend.run_pipeline import extract_dynamic_pdf_data, get_db_connection
     except (ModuleNotFoundError, ImportError) as e:
         st.error(
-            f"⚠️ **Erreur critique de configuration de l'application**\n\n"
-            f"Le portail n'a pas pu lier le module de traitement `run_pipeline.py`.\n\n"
-            f"**Détails techniques :** `{e}`\n"
-            f"**Chemin cherché :** `{backend_path}`"
+            f"⚠️ **Critical Application Configuration Error**\n\n"
+            f"The portal could not link the processing module `run_pipeline.py`.\n\n"
+            f"**Technical Details:** `{e}`\n"
+            f"**Searched Path:** `{backend_path}`"
         )
-        st.stop()  # Arrête proprement l'exécution de Streamlit pour éviter une cascade d'erreurs
-# --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
+        st.stop()
+
+# --- CSS STYLING SHEET ---
 global_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
@@ -72,7 +70,7 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* CONSERVATION DE LA LIGNE ROUGE NATIVE */
+    /* RED HIGHLIGHT FOR ACTIVE TABS */
     .stTabs [data-baseweb="tab-highlight"],
     [data-testid="stActiveTabIndicator"] {
         background-color: #ff4b4b !important;
@@ -80,7 +78,7 @@ global_design_css = """
         height: 3px !important;
     }
 
-    /* Style des onglets principaux */
+    /* Main tabs style */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
@@ -90,14 +88,14 @@ global_design_css = """
         box-shadow: none !important;
     }
     
-    /* Onglet sélectionné */
+    /* Selected tab */
     .stTabs [aria-selected="true"] {
         color: #ff4b4b !important;
         border-bottom: none !important;
         background-color: transparent !important;
     }
     
-    /* MODIFICATION DU BLOC : NOIR TRANSPARENT ET FLOU DE FOND */
+    /* Container styling: transparent black with backdrop blur */
     div[data-testid="stForm"], [data-testid="stForm"] {
         background-color: rgba(0, 0, 0, 0.65) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -118,7 +116,7 @@ global_design_css = """
         box-shadow: 0 0 0 1px #ff4b4b !important;
     }
     
-    /* MODIFICATION DES BOUTONS */
+    /* Buttons Styling */
     .stButton>button,
     div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
         width: 100% !important;
@@ -140,7 +138,7 @@ global_design_css = """
         cursor: pointer;
     }
 
-    /* NEUTRALISATION DU BOUTON DE L'ŒIL DU MOT DE PASSE */
+    /* Password visibility icon correction */
     .stTextInput button,
     .stTextInput div[data-testid="InputWithAdornment"] button,
     .stTextInput button[property="password-visibility"] {
@@ -166,7 +164,7 @@ global_design_css = """
         color: #ff4b4b !important;
     }
 
-    /* Style de la Sidebar */
+    /* Sidebar Styling */
     .stSidebar { 
         background: rgba(13, 14, 18, 0.84) !important; 
         border-right: 1px solid #334155; 
@@ -220,9 +218,7 @@ def clear_production_database():
                 raise e
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
-# --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username, file_bytes):
-    # Sécurisation préventive si les listes sont None au lieu de listes vides
     if not defects_list:
         defects_list = []
     if not occurrences_list:
@@ -247,7 +243,6 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 
                 result = cur.fetchone()
                 
-                # If result is None, it means ON CONFLICT was triggered (Duplicate found)
                 if result is None:
                     raise Exception("Duplicate ignored: This specific PDF report has already been processed for this site/plant.")
                 
@@ -255,11 +250,9 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
 
                 audit_id_map = {}
                 for r in details:
-                    # Sécurité : Si le QK_score ou les compteurs de défauts sont absents
                     qk_score = r.get('QK_score')
                     defect_count = r.get('defect_count', 0)
                     
-                    # Si aucun défaut n'est détecté, on s'assure que le score est parfait par défaut (1.0)
                     if (qk_score is None or qk_score == 0.0) and defect_count == 0:
                         qk_score = 1.0
                     elif qk_score is None:
@@ -284,7 +277,7 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                             audit_id_map[dn_clean] = []
                         audit_id_map[dn_clean].append(generated_id)
 
-                # 3. Insertion des détails de défauts (Uniquement s'il y en a de listés)
+                # 3. Insert defect details
                 if defects_list:
                     for d in defects_list:
                         dn_defect = str(d.get('drawing_number', '')).strip()
@@ -301,18 +294,18 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                                 VALUES (%s, %s, %s);
                             """, (target_audit_id, d.get('defect_code'), d.get('penalty_points', 0)))
 
-                # 4. Insertion des occurrences globales (Uniquement s'il y en a)
+                # 4. Insert global occurrences
                 if occurrences_list:
                     for o in occurrences_list:
                         defect_code = o.get('defect_code')
-                        if defect_code:  # Sécurité pour éviter d'insérer des lignes d'occurrences vides
+                        if defect_code:
                             cur.execute("""
                                 INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
                                 VALUES (%s, %s, %s);
                             """, (summary_id, defect_code, o.get('total_count', 0)))
 
                 conn.commit()
-                print("🎉 Database injection completed successfully (even with zero defects)!", flush=True)
+                print("🎉 Database injection completed successfully!", flush=True)
             except Exception as e:
                 conn.rollback()
                 print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
@@ -404,7 +397,7 @@ else:
                 except Exception as e:
                     strl.error(f"Failed to clear database: {str(e)}")
         else:
-            strl.warning("🔒 Actions réservées aux administrateurs.")
+            strl.warning("🔒 Actions restricted to administrators.")
         
         strl.markdown("---")
         authenticator.logout(' Log Out', 'sidebar')
@@ -425,57 +418,48 @@ else:
         if uploaded_file and strl.button(" Inject into Database"):
             try:
                 with strl.spinner(" Processing PDF and preparing database injection..."):
-                    file_bytes = uploaded_file.read() # On lit les bytes une seule fois ici
-                    # --- START OF MODIFICATION BLOCK IN PORTAL.PY (TAB 1) ---
-
+                    file_bytes = uploaded_file.read()
+                    
                     # 1. Execute the extraction pipeline
                     summary, details = extract_dynamic_pdf_data(file_bytes)
 
                     # 2. Initialize structures for database injection
-                    defects = []          # Maps to public.audit_defects_raw
-                    occurrences_dict = {} # Accumulates counts for public.pdf_total_occurrences
+                    defects = []          
+                    occurrences_dict = {} 
 
                     for h in details:
                         drawing_number = h.get("drawing_number", "UNKNOWN")
-                        
-                        # 🔍 Aligned with your pipeline's exact key name: "raw_defects_list"
                         raw_defects_list = h.get("raw_defects_list") or []
                         
                         for code in raw_defects_list:
-                            if code:  # Ensure the validated defect code is not empty
-                                # A. Structuring records for the raw defects table
+                            if code:
                                 defects.append({
                                     "drawing_number": drawing_number,
                                     "defect_code": code,
-                                    "points": 0,  # Default value, adjust if your constants array handles weight points
+                                    "points": 0,
                                     "description": f"Defect {code} automatically detected"
                                 })
                                 
-                                # B. Aggregating global PDF occurrence counts
                                 if code in occurrences_dict:
                                     occurrences_dict[code] += 1
                                 else:
                                     occurrences_dict[code] = 1
 
-                    # Convert the occurrence tracking dictionary to the list structure expected by save_to_database
                     occurrences = [
                         {"defect_code": code, "total_count": count} 
                         for code, count in occurrences_dict.items()
                     ]
 
-                    # 3. Streamlit Debugging & Control Status logs
+                    # 3. Status Logs
                     st.subheader(" Defect Code Analysis Status")
                     st.info(f" Total raw defect logs extracted: **{len(defects)}**")
                     st.info(f" Unique defect codes identified: **{len(occurrences)}**")
 
                     # 4. Safe data persistence execution into PostgreSQL
-                    # (Ensure 'username' and 'file_bytes' variables match your local environment names)
                     save_to_database(summary, details, defects, occurrences, username, file_bytes)
 
                     st.success("✅ Monthly report metrics and defect tables successfully injected into the database!")
-
-                    # --- END OF MODIFICATION BLOCK IN PORTAL.PY ---
-                st.toast("🎉 Injection réussie avec succès !", icon="✅")
+                st.toast("🎉 Injection completed successfully!", icon="✅")
                 strl.rerun()
                 
             except Exception as e:
@@ -485,11 +469,10 @@ else:
     with tab2:
         strl.header("Quality Analytics Register")
         if st.session_state.get("role") == "admin":
-            strl.success("🔓 Accès Admin accordé")
+            strl.success("🔓 Admin Access Granted")
             subtab1, subtab2, subtab3, subtab4 = strl.tabs(["Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"])
 
             try:
-                # Utilisation directe du context manager natif pour les requêtes Pandas SQL
                 with get_db_connection() as conn:
                     with subtab1:
                         query1 = "SELECT * FROM public.monthly_summaries;"
@@ -518,7 +501,7 @@ else:
             except Exception as e:
                 strl.error(f"Error loading registers: {str(e)}")
         else:
-            strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis.")
+            strl.warning("⚠️ Restricted Access. Only administrators have the required permissions.")
                 
     # --- DASHBOARD ---
     with tab3:
@@ -527,22 +510,20 @@ else:
         if st.session_state.get("role") == "admin":
             try:
                 with get_db_connection() as conn:
-                    # 1. RÉCUPÉRATION DES MOIS DISPONIBLES (Basé sur la date du PDF)
+                    # 1. RETRIEVE AVAILABLE MONTHS
                     query_months = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month FROM public.monthly_summaries ORDER BY audit_month DESC"
                     df_months = pd.read_sql(query_months, conn)
                     
                     if not df_months.empty:
                         available_months = df_months['audit_month'].tolist()
                         
-                        # Sélecteur global de mois tout en haut
                         selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
                         strl.markdown("---")
                         
-                        # Onglets radio
                         dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
                         strl.markdown("---")
                         
-                        # --- VUE 1 : QUALITY CLASS AVERAGE PER PLANT ---
+                        # --- VIEW 1 : QUALITY CLASS AVERAGE PER PLANT ---
                         if dashboard_subtab == "Quality Class average per plant":
                             query_qk = f"SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = '{selected_month}'"
                             df_dash = pd.read_sql(query_qk, conn)
@@ -557,7 +538,6 @@ else:
                                 )
                                 strl.plotly_chart(fig, width="stretch")
                                 
-                                # Calcul de la moyenne pour CE mois précis
                                 global_qk_avg = df_dash['qk_avg'].mean()
                                 strl.markdown(f"""
                                 <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
@@ -568,7 +548,7 @@ else:
                             else:
                                 strl.info(f"No production data found for the month: {selected_month}")
                                 
-                        # --- VUE 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
+                        # --- VIEW 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
                         elif dashboard_subtab == "Defect Code Frequency & Occurrence":
                             query_occ = f"""
                                 SELECT s.plant, o.defect_code, o.total_count 
@@ -612,8 +592,8 @@ else:
                             else:
                                 strl.info(f"No occurrence data available for {selected_month}.")
                     else:
-                        strl.info("Dashboard awaiting database records...")
+                        strl.info("No audit summaries found in the database. Please upload a report in the Data Intake Portal first.")
             except Exception as e:
-                strl.error(f"Dashboard Load Error: {str(e)}")
+                strl.error(f"Error compiling Dashboard metrics: {str(e)}")
         else:
-            strl.warning("⚠️ Access restricted. Only administrators have the required rights.")
+            strl.warning("⚠️ Restricted Access. Only administrators can access performance dashboards.")

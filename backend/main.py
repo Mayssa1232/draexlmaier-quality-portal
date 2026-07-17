@@ -26,20 +26,33 @@ st.set_page_config(page_title="DRÄXLMAIER Quality Portal", layout="wide")
 if "tabs_initialized" not in st.session_state:
     st.session_state["tabs_initialized"] = False
 
-# --- CONFIGURATION DYNAMIQUE DES CHEMINS ---
+# --- DYNAMIC PATH CONFIGURATION ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_path = os.path.abspath(os.path.join(current_dir, "..", "backend"))
+backend_path = os.path.normpath(os.path.join(current_dir, "..", "backend"))
+project_root = os.path.normpath(os.path.join(current_dir, ".."))
 
+# Add backend directory and project root to sys.path
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
+if project_root not in sys.path:
+    sys.path.insert(1, project_root)
 
-# Import des fonctions du pipeline avec gestion d'erreur
+# Import pipeline functions with safe fallback
 try:
     from run_pipeline import extract_dynamic_pdf_data, get_db_connection
-except (ModuleNotFoundError, ImportError) as e:
-    st.error(f"Erreur de chemin : Impossible de charger les fonctions de 'run_pipeline.py'. Détails : {e}")
+except (ModuleNotFoundError, ImportError):
+    try:
+        from backend.run_pipeline import extract_dynamic_pdf_data, get_db_connection
+    except (ModuleNotFoundError, ImportError) as e:
+        st.error(
+            f"⚠️ **Critical Application Configuration Error**\n\n"
+            f"The portal could not link the processing module `run_pipeline.py`.\n\n"
+            f"**Technical Details:** `{e}`\n"
+            f"**Searched Path:** `{backend_path}`"
+        )
+        st.stop()
 
-# --- UN_BLOC_CSS_UNIQUE_POUR_TOUTE_L_APPLICATION ---
+# --- CSS STYLING SHEET ---
 global_design_css = """
 <style>
     /* Main Background with Car Image & Text Color */
@@ -57,7 +70,7 @@ global_design_css = """
         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
     }
 
-    /* CONSERVATION DE LA LIGNE ROUGE NATIVE */
+    /* RED HIGHLIGHT FOR ACTIVE TABS */
     .stTabs [data-baseweb="tab-highlight"],
     [data-testid="stActiveTabIndicator"] {
         background-color: #ff4b4b !important;
@@ -65,7 +78,7 @@ global_design_css = """
         height: 3px !important;
     }
 
-    /* Style des onglets principaux */
+    /* Main tabs style */
     .stTabs [data-baseweb="tab"], .stTabs [role="tab"] {
         color: #e2e8f0 !important;
         font-weight: 600 !important;
@@ -75,14 +88,14 @@ global_design_css = """
         box-shadow: none !important;
     }
     
-    /* Onglet sélectionné */
+    /* Selected tab */
     .stTabs [aria-selected="true"] {
         color: #ff4b4b !important;
         border-bottom: none !important;
         background-color: transparent !important;
     }
     
-    /* MODIFICATION DU BLOC : NOIR TRANSPARENT ET FLOU DE FOND */
+    /* Container styling: transparent black with backdrop blur */
     div[data-testid="stForm"], [data-testid="stForm"] {
         background-color: rgba(0, 0, 0, 0.65) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -103,7 +116,7 @@ global_design_css = """
         box-shadow: 0 0 0 1px #ff4b4b !important;
     }
     
-    /* MODIFICATION DES BOUTONS */
+    /* Buttons Styling */
     .stButton>button,
     div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
         width: 100% !important;
@@ -125,7 +138,7 @@ global_design_css = """
         cursor: pointer;
     }
 
-    /* NEUTRALISATION DU BOUTON DE L'ŒIL DU MOT DE PASSE */
+    /* Password visibility icon correction */
     .stTextInput button,
     .stTextInput div[data-testid="InputWithAdornment"] button,
     .stTextInput button[property="password-visibility"] {
@@ -151,7 +164,7 @@ global_design_css = """
         color: #ff4b4b !important;
     }
 
-    /* Style de la Sidebar */
+    /* Sidebar Styling */
     .stSidebar { 
         background: rgba(13, 14, 18, 0.84) !important; 
         border-right: 1px solid #334155; 
@@ -206,6 +219,11 @@ def clear_production_database():
 
 # --- MULTI-TABLE INJECTION FUNCTION ---
 def save_to_database(summary, details, defects_list, occurrences_list, username, file_bytes):
+    if not defects_list:
+        defects_list = []
+    if not occurrences_list:
+        occurrences_list = []
+
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             try:
@@ -219,13 +237,12 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                     ON CONFLICT (plant, supplier, report_month, report_year, pdf_hash) DO NOTHING
                     RETURNING summary_id;
-                """, (summary['supplier'], summary['plant'], summary['country'],
+                """, (summary.get('supplier', 'Interne'), summary['plant'], summary['country'],
                     str(summary['report_month']), str(summary['report_year']),
                     summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count'], pdf_hash))
                 
                 result = cur.fetchone()
                 
-                # If result is None, it means ON CONFLICT was triggered (Duplicate found)
                 if result is None:
                     raise Exception("Duplicate ignored: This specific PDF report has already been processed for this site/plant.")
                 
@@ -233,48 +250,65 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
 
                 audit_id_map = {}
                 for r in details:
+                    qk_score = r.get('QK_score')
+                    defect_count = r.get('defect_count', 0)
+                    
+                    if (qk_score is None or qk_score == 0.0) and defect_count == 0:
+                        qk_score = 1.0
+                    elif qk_score is None:
+                        qk_score = 0.0
+
                     cur.execute("""
                         INSERT INTO public.harness_audits
                         (summary_id, vehicle_type, drawing_number, part_description, QK_score, defect_count, defect_points, inserted_by, calculation_factor, count_wires, count_contacts, count_components, audit_type)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING audit_id;
                     """, (
                         summary_id, r.get('vehicle_type'), r.get('drawing_number'), r.get('part_description'), 
-                        r.get('QK_score'), r.get('defect_count'), r.get('defect_points'), username, 
-                        r.get('calculation_factor'), r.get('count_wires'), r.get('count_contacts'), 
-                        r.get('count_components'), r.get('audit_type')
+                        qk_score, defect_count, r.get('defect_points', 0), username, 
+                        r.get('calculation_factor', 0.7), r.get('count_wires', 0), r.get('count_contacts', 0), 
+                        r.get('count_components', 0), r.get('audit_type', 'P')
                     ))
                     generated_id = cur.fetchone()[0]
                     
                     dn = r.get('drawing_number')
                     if dn:
-                        if dn not in audit_id_map:
-                            audit_id_map[dn] = []
-                        audit_id_map[dn].append(generated_id)
+                        dn_clean = str(dn).strip()
+                        if dn_clean not in audit_id_map:
+                            audit_id_map[dn_clean] = []
+                        audit_id_map[dn_clean].append(generated_id)
 
-                for d in defects_list:
-                    dn_defect = d.get('drawing_number', '')
-                    target_audit_id = None
-                    
-                    for registered_dn, ids in audit_id_map.items():
-                        if registered_dn in dn_defect or dn_defect in registered_dn:
-                            target_audit_id = ids[0]
-                            break
-                            
-                    if target_audit_id:
-                        cur.execute("""
-                            INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
-                            VALUES (%s, %s, %s);
-                        """, (target_audit_id, d.get('defect_code'), d.get('penalty_points')))
+                # 3. Insert defect details
+                if defects_list:
+                    for d in defects_list:
+                        dn_defect = str(d.get('drawing_number', '')).strip()
+                        target_audit_id = None
+                        
+                        for registered_dn, ids in audit_id_map.items():
+                            if registered_dn in dn_defect or dn_defect in registered_dn:
+                                target_audit_id = ids[0]
+                                break
+                                
+                        if target_audit_id:
+                            cur.execute("""
+                                INSERT INTO public.audit_defects_raw (audit_id, defect_code, penalty_points) 
+                                VALUES (%s, %s, %s);
+                            """, (target_audit_id, d.get('defect_code'), d.get('penalty_points', 0)))
 
-                for o in occurrences_list:
-                    cur.execute("""
-                        INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
-                        VALUES (%s, %s, %s);
-                    """, (summary_id, o.get('defect_code'), o.get('total_count')))
+                # 4. Insert global occurrences
+                if occurrences_list:
+                    for o in occurrences_list:
+                        defect_code = o.get('defect_code')
+                        if defect_code:
+                            cur.execute("""
+                                INSERT INTO public.pdf_total_occurrences (summary_id, defect_code, total_count) 
+                                VALUES (%s, %s, %s);
+                            """, (summary_id, defect_code, o.get('total_count', 0)))
 
                 conn.commit()
+                print("🎉 Database injection completed successfully!", flush=True)
             except Exception as e:
                 conn.rollback()
+                print(f"❌ Database injection failed, transaction rolled back: {e}", flush=True)
                 raise e
 
 # --- WELCOME GATE INTERFACE (LOGIN / REGISTRATION) ---
@@ -339,10 +373,10 @@ else:
     user_data = auth_dict["credentials"]["usernames"].get(username, {})
     st.session_state["role"] = user_data.get('role', 'user')
     st.session_state['user_email'] = user_data.get('email', '')
-    
-    with strl.sidebar:
+        
+    with st.sidebar:
         if os.path.exists("image_609dcc.png"): 
-            strl.image("image_609dcc.png", use_container_width=True)
+            st.image("image_609dcc.png", width="stretch")
         strl.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>DRÄXLMAIER</h2>", unsafe_allow_html=True)
         strl.markdown("<p style='text-align: center; color: #94a3b8; font-size: 14px;'>Automotive System Quality</p>", unsafe_allow_html=True)
         
@@ -363,220 +397,203 @@ else:
                 except Exception as e:
                     strl.error(f"Failed to clear database: {str(e)}")
         else:
-            strl.warning("🔒 Actions réservées aux administrateurs.")
+            strl.warning("🔒 Actions restricted to administrators.")
         
         strl.markdown("---")
         authenticator.logout(' Log Out', 'sidebar')
 
     tab1, tab2, tab3 = strl.tabs(["DATA INTAKE PORTAL", "QUALITY ANALYTICS REGISTER", "VIEW DASHBOARD"])
 
-# ==============================================================================
-# --- PORTAL TABS MANAGEMENTS ---
-# ==============================================================================
+    # --- DATA INTAKE ---
+    with tab1:
+        strl.header("Data Intake Portal")
+        
+        if "injection_success" in st.session_state:
+            strl.success(st.session_state["injection_success"])
+            if strl.button("Clear Notification"):
+                del st.session_state["injection_success"]
+                strl.rerun()
 
-# --- DATA INTAKE ---
-with tab1:
-    strl.header("Data Intake Portal")
-    
-    if "injection_success" in st.session_state:
-        strl.success(st.session_state["injection_success"])
-        if strl.button("Clear Notification"):
-            del st.session_state["injection_success"]
-            strl.rerun()
-
-    uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
-    if uploaded_file and strl.button(" Inject into Database"):
-        try:
-            with strl.spinner(" Processing PDF and preparing database injection..."):
-                file_bytes = uploaded_file.read() # On lit les bytes une seule fois ici
-                # --- START OF MODIFICATION BLOCK IN PORTAL.PY (TAB 1) ---
-
-                # 1. Execute the extraction pipeline
-                summary, details = extract_dynamic_pdf_data(file_bytes)
-
-                # 2. Initialize structures for database injection
-                defects = []          # Maps to public.audit_defects_raw
-                occurrences_dict = {} # Accumulates counts for public.pdf_total_occurrences
-
-                for h in details:
-                    drawing_number = h.get("drawing_number", "UNKNOWN")
+        uploaded_file = strl.file_uploader("Upload Compliance PDF", type=["pdf"])
+        if uploaded_file and strl.button(" Inject into Database"):
+            try:
+                with strl.spinner(" Processing PDF and preparing database injection..."):
+                    file_bytes = uploaded_file.read()
                     
-                    # 🔍 Aligned with your pipeline's exact key name: "raw_defects_list"
-                    raw_defects_list = h.get("raw_defects_list") or []
-                    
-                    for code in raw_defects_list:
-                        if code:  # Ensure the validated defect code is not empty
-                            # A. Structuring records for the raw defects table
-                            defects.append({
-                                "drawing_number": drawing_number,
-                                "defect_code": code,
-                                "points": 0,  # Default value, adjust if your constants array handles weight points
-                                "description": f"Defect {code} automatically detected"
-                            })
-                            
-                            # B. Aggregating global PDF occurrence counts
-                            if code in occurrences_dict:
-                                occurrences_dict[code] += 1
-                            else:
-                                occurrences_dict[code] = 1
+                    # 1. Execute the extraction pipeline
+                    summary, details = extract_dynamic_pdf_data(file_bytes)
 
-                # Convert the occurrence tracking dictionary to the list structure expected by save_to_database
-                occurrences = [
-                    {"defect_code": code, "total_count": count} 
-                    for code, count in occurrences_dict.items()
-                ]
+                    # 2. Initialize structures for database injection
+                    defects = []          
+                    occurrences_dict = {} 
 
-                # 3. Streamlit Debugging & Control Status logs
-                st.subheader(" Defect Code Analysis Status")
-                st.info(f" Total raw defect logs extracted: **{len(defects)}**")
-                st.info(f" Unique defect codes identified: **{len(occurrences)}**")
-
-                # 4. Safe data persistence execution into PostgreSQL
-                # (Ensure 'username' and 'file_bytes' variables match your local environment names)
-                save_to_database(summary, details, defects, occurrences, username, file_bytes)
-
-                st.success("✅ Monthly report metrics and defect tables successfully injected into the database!")
-
-                # --- END OF MODIFICATION BLOCK IN PORTAL.PY ---
-            st.toast("🎉 Injection réussie avec succès !", icon="✅")
-            strl.rerun()
-            
-        except Exception as e:
-            strl.error(f"Injection Failed: {str(e)}")
-
-# --- ANALYTICS REGISTER ---
-with tab2:
-    strl.header("Quality Analytics Register")
-    if st.session_state.get("role") == "admin":
-        strl.success("🔓 Accès Admin accordé")
-        subtab1, subtab2, subtab3, subtab4 = strl.tabs(["Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"])
-
-        try:
-            # Utilisation directe du context manager natif pour les requêtes Pandas SQL
-            with get_db_connection() as conn:
-                with subtab1:
-                    query1 = "SELECT * FROM public.monthly_summaries;"
-                    df1 = pd.read_sql(query1, conn)
-                    if not df1.empty:
-                        strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                    for h in details:
+                        drawing_number = h.get("drawing_number", "UNKNOWN")
+                        raw_defects_list = h.get("raw_defects_list") or []
                         
-                with subtab2:
-                    query2 = "SELECT s.plant, h.* FROM public.harness_audits h JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
-                    df2 = pd.read_sql(query2, conn)
-                    if not df2.empty:
-                        strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
-                        
-                with subtab3:
-                    query3 = "SELECT s.plant, d.* FROM public.audit_defects_raw d JOIN public.harness_audits h ON d.audit_id = h.audit_id JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
-                    df3 = pd.read_sql(query3, conn)
-                    if not df3.empty:
-                        strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
-                        
-                with subtab4:
-                    query4 = "SELECT s.plant, o.* FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
-                    df4 = pd.read_sql(query4, conn)
-                    if not df4.empty:
-                        strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
-                        
-        except Exception as e:
-            strl.error(f"Error loading registers: {str(e)}")
-    else:
-        strl.warning("⚠️ Accès restreint. Seuls les administrateurs ont les droits requis.")
-            
-# --- DASHBOARD ---
-with tab3:
-    strl.header("Performance Dashboard")
-    
-    if st.session_state.get("role") == "admin":
-        try:
-            with get_db_connection() as conn:
-                # 1. RÉCUPÉRATION DES MOIS DISPONIBLES (Basé sur la date du PDF)
-                query_months = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month FROM public.monthly_summaries ORDER BY audit_month DESC"
-                df_months = pd.read_sql(query_months, conn)
+                        for code in raw_defects_list:
+                            if code:
+                                defects.append({
+                                    "drawing_number": drawing_number,
+                                    "defect_code": code,
+                                    "points": 0,
+                                    "description": f"Defect {code} automatically detected"
+                                })
+                                
+                                if code in occurrences_dict:
+                                    occurrences_dict[code] += 1
+                                else:
+                                    occurrences_dict[code] = 1
+
+                    occurrences = [
+                        {"defect_code": code, "total_count": count} 
+                        for code, count in occurrences_dict.items()
+                    ]
+
+                    # 3. Status Logs
+                    st.subheader(" Defect Code Analysis Status")
+                    st.info(f" Total raw defect logs extracted: **{len(defects)}**")
+                    st.info(f" Unique defect codes identified: **{len(occurrences)}**")
+
+                    # 4. Safe data persistence execution into PostgreSQL
+                    save_to_database(summary, details, defects, occurrences, username, file_bytes)
+
+                    st.success("✅ Monthly report metrics and defect tables successfully injected into the database!")
+                st.toast("🎉 Injection completed successfully!", icon="✅")
+                strl.rerun()
                 
-                if not df_months.empty:
-                    available_months = df_months['audit_month'].tolist()
+            except Exception as e:
+                strl.error(f"Injection Failed: {str(e)}")
+
+    # --- ANALYTICS REGISTER ---
+    with tab2:
+        strl.header("Quality Analytics Register")
+        if st.session_state.get("role") == "admin":
+            strl.success("🔓 Admin Access Granted")
+            subtab1, subtab2, subtab3, subtab4 = strl.tabs(["Monthly Summaries", "Harness Audits", "Audit Defects", "Occurrences"])
+
+            try:
+                with get_db_connection() as conn:
+                    with subtab1:
+                        query1 = "SELECT * FROM public.monthly_summaries;"
+                        df1 = pd.read_sql(query1, conn)
+                        if not df1.empty:
+                            strl.dataframe(df1.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                            
+                    with subtab2:
+                        query2 = "SELECT s.plant, h.* FROM public.harness_audits h JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                        df2 = pd.read_sql(query2, conn)
+                        if not df2.empty:
+                            strl.dataframe(df2.drop(columns=['summary_id', 'audit_id'], errors='ignore'), use_container_width=True)
+                            
+                    with subtab3:
+                        query3 = "SELECT s.plant, d.* FROM public.audit_defects_raw d JOIN public.harness_audits h ON d.audit_id = h.audit_id JOIN public.monthly_summaries s ON h.summary_id = s.summary_id"
+                        df3 = pd.read_sql(query3, conn)
+                        if not df3.empty:
+                            strl.dataframe(df3.drop(columns=['audit_id'], errors='ignore'), use_container_width=True)
+                            
+                    with subtab4:
+                        query4 = "SELECT s.plant, o.* FROM public.pdf_total_occurrences o JOIN public.monthly_summaries s ON o.summary_id = s.summary_id"
+                        df4 = pd.read_sql(query4, conn)
+                        if not df4.empty:
+                            strl.dataframe(df4.drop(columns=['summary_id'], errors='ignore'), use_container_width=True)
+                            
+            except Exception as e:
+                strl.error(f"Error loading registers: {str(e)}")
+        else:
+            strl.warning("⚠️ Restricted Access. Only administrators have the required permissions.")
+                
+    # --- DASHBOARD ---
+    with tab3:
+        strl.header("Performance Dashboard")
+        
+        if st.session_state.get("role") == "admin":
+            try:
+                with get_db_connection() as conn:
+                    # 1. RETRIEVE AVAILABLE MONTHS
+                    query_months = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as audit_month FROM public.monthly_summaries ORDER BY audit_month DESC"
+                    df_months = pd.read_sql(query_months, conn)
                     
-                    # Sélecteur global de mois tout en haut
-                    selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
-                    strl.markdown("---")
-                    
-                    # Onglets radio
-                    dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
-                    strl.markdown("---")
-                    
-                    # --- VUE 1 : QUALITY CLASS AVERAGE PER PLANT ---
-                    if dashboard_subtab == "Quality Class average per plant":
-                        query_qk = f"SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = '{selected_month}'"
-                        df_dash = pd.read_sql(query_qk, conn)
+                    if not df_months.empty:
+                        available_months = df_months['audit_month'].tolist()
                         
-                        if not df_dash.empty:
-                            fig = px.bar(df_dash, x='plant', y='qk_avg', title=f"QK Average per Plant ({selected_month})", color='qk_avg')
-                            fig.update_layout(
-                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                font_color="#ffffff", title_font_color="#ffffff",
-                                xaxis=dict(showgrid=False, categoryorder='total descending'),
-                                yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
-                            )
-                            strl.plotly_chart(fig, width="stretch")
-                            
-                            # Calcul de la moyenne pour CE mois précis
-                            global_qk_avg = df_dash['qk_avg'].mean()
-                            strl.markdown(f"""
-                            <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
-                                <h4 style="margin: 0; color: #ffffff;">Global QK Average for {selected_month} (All Plants Combined)</h4>
-                                <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}%</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            strl.info(f"No production data found for the month: {selected_month}")
-                            
-                    # --- VUE 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
-                    elif dashboard_subtab == "Defect Code Frequency & Occurrence":
-                        query_occ = f"""
-                            SELECT s.plant, o.defect_code, o.total_count 
-                            FROM public.pdf_total_occurrences o 
-                            JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
-                            WHERE TO_CHAR(s.created_at, 'YYYY-MM') = '{selected_month}'
-                        """
-                        df_occ = pd.read_sql(query_occ, conn)
+                        selected_month = strl.selectbox("📅 Select Audit Month:", available_months, key="global_dashboard_month")
+                        strl.markdown("---")
                         
-                        if not df_occ.empty:
-                            col_chart, col_select = strl.columns([3, 1])
+                        dashboard_subtab = strl.radio("Select View:", ["Quality Class average per plant", "Defect Code Frequency & Occurrence"], horizontal=True)
+                        strl.markdown("---")
+                        
+                        # --- VIEW 1 : QUALITY CLASS AVERAGE PER PLANT ---
+                        if dashboard_subtab == "Quality Class average per plant":
+                            query_qk = f"SELECT plant, qk_avg FROM public.monthly_summaries WHERE TO_CHAR(created_at, 'YYYY-MM') = '{selected_month}'"
+                            df_dash = pd.read_sql(query_qk, conn)
                             
-                            with col_select:
-                                strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
-                                plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
-                                selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                            if not df_dash.empty:
+                                fig = px.bar(df_dash, x='plant', y='qk_avg', title=f"QK Average per Plant ({selected_month})", color='qk_avg')
+                                fig.update_layout(
+                                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                    font_color="#ffffff", title_font_color="#ffffff",
+                                    xaxis=dict(showgrid=False, categoryorder='total descending'),
+                                    yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                )
+                                strl.plotly_chart(fig, width="stretch")
                                 
-                            with col_chart:
-                                if selected_plant == "All Plants":
-                                    df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
-                                    chart_title = f"Total Occurrences per Defect Code - Combined Plants ({selected_month})"
-                                else:
-                                    df_filtered = df_occ[df_occ['plant'] == selected_plant]
-                                    chart_title = f"Occurrences per Defect Code - Plant: {selected_plant} ({selected_month})"
+                                global_qk_avg = df_dash['qk_avg'].mean()
+                                strl.markdown(f"""
+                                <div style="background-color: rgba(0, 255, 208, 0.1); border-left: 5px solid #00ffd0; padding: 15px; border-radius: 4px; margin-top: 20px;">
+                                    <h4 style="margin: 0; color: #ffffff;">Global QK Average for {selected_month} (All Plants Combined)</h4>
+                                    <p style="font-size: 24px; font-weight: bold; color: #00ffd0; margin: 5px 0 0 0;">{global_qk_avg:.2f}%</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                strl.info(f"No production data found for the month: {selected_month}")
                                 
-                                if not df_filtered.empty:
-                                    fig_occ = px.bar(
-                                        df_filtered, x='defect_code', y='total_count', title=chart_title,
-                                        labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
-                                        color='total_count', color_continuous_scale='Viridis', text_auto=True
-                                    )
-                                    fig_occ.update_layout(
-                                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                        font_color="#ffffff", title_font_color="#ffffff",
-                                        xaxis=dict(showgrid=False, categoryorder='total descending'),
-                                        yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
-                                    )
-                                    strl.plotly_chart(fig_occ, width="stretch")
-                                else:
-                                    strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
-                        else:
-                            strl.info(f"No occurrence data available for {selected_month}.")
-                else:
-                    strl.info("Dashboard awaiting database records...")
-        except Exception as e:
-            strl.error(f"Dashboard Load Error: {str(e)}")
-    else:
-        strl.warning("⚠️ Access restricted. Only administrators have the required rights.")
+                        # --- VIEW 2 : DEFECT CODE FREQUENCY & OCCURRENCE ---
+                        elif dashboard_subtab == "Defect Code Frequency & Occurrence":
+                            query_occ = f"""
+                                SELECT s.plant, o.defect_code, o.total_count 
+                                FROM public.pdf_total_occurrences o 
+                                JOIN public.monthly_summaries s ON o.summary_id = s.summary_id
+                                WHERE TO_CHAR(s.created_at, 'YYYY-MM') = '{selected_month}'
+                            """
+                            df_occ = pd.read_sql(query_occ, conn)
+                            
+                            if not df_occ.empty:
+                                col_chart, col_select = strl.columns([3, 1])
+                                
+                                with col_select:
+                                    strl.markdown("<h4 style='color: #00ffd0;'>Plant Selection</h4>", unsafe_allow_html=True)
+                                    plant_list = ["All Plants"] + sorted(df_occ['plant'].unique())
+                                    selected_plant = strl.radio("Filter by plant:", plant_list, key="plant_dashboard_filter")
+                                    
+                                with col_chart:
+                                    if selected_plant == "All Plants":
+                                        df_filtered = df_occ.groupby('defect_code')['total_count'].sum().reset_index()
+                                        chart_title = f"Total Occurrences per Defect Code - Combined Plants ({selected_month})"
+                                    else:
+                                        df_filtered = df_occ[df_occ['plant'] == selected_plant]
+                                        chart_title = f"Occurrences per Defect Code - Plant: {selected_plant} ({selected_month})"
+                                    
+                                    if not df_filtered.empty:
+                                        fig_occ = px.bar(
+                                            df_filtered, x='defect_code', y='total_count', title=chart_title,
+                                            labels={'defect_code': 'Defect Code', 'total_count': 'Occurrence Count'},
+                                            color='total_count', color_continuous_scale='Viridis', text_auto=True
+                                        )
+                                        fig_occ.update_layout(
+                                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                            font_color="#ffffff", title_font_color="#ffffff",
+                                            xaxis=dict(showgrid=False, categoryorder='total descending'),
+                                            yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+                                        )
+                                        strl.plotly_chart(fig_occ, width="stretch")
+                                    else:
+                                        strl.warning(f"No defects logged for plant: {selected_plant} in {selected_month}.")
+                            else:
+                                strl.info(f"No occurrence data available for {selected_month}.")
+                    else:
+                        strl.info("No audit summaries found in the database. Please upload a report in the Data Intake Portal first.")
+            except Exception as e:
+                strl.error(f"Error compiling Dashboard metrics: {str(e)}")
+        else:
+            strl.warning("⚠️ Restricted Access. Only administrators can access performance dashboards.")

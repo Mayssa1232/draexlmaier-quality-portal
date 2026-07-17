@@ -6,9 +6,17 @@ import re
 import time
 import streamlit as st
 from pypdf import PdfReader
-from sqlalchemy import create_engine  # <-- Ajout de l'import pour le moteur
+from sqlalchemy import create_engine
+
+# =====================================================================
+# MODULE 1: DATABASE CONNECTIONS & ENGINES
+# Role: Manages connections to the PostgreSQL database using both
+#       psycopg2 (for transactional queries) and SQLAlchemy (optimized
+#       for Pandas DataFrame operations to prevent Segmentation Faults).
+# =====================================================================
 
 def get_db_connection():
+    """Establishes and returns a standard psycopg2 database connection connection."""
     return psycopg2.connect(
         host=st.secrets["DB_HOST"],
         database=st.secrets["DB_NAME"],
@@ -18,38 +26,55 @@ def get_db_connection():
     )
 
 def get_sqlalchemy_engine():
-    """Crée un moteur SQLAlchemy pour que Pandas (pd.read_sql) 
-    puisse lire la base de données sans provoquer de Segmentation fault."""
+    """
+    Creates and returns an SQLAlchemy engine instance.
+    This is required for pandas.read_sql to safely retrieve data without segment faults.
+    """
     user = st.secrets["DB_USER"]
     password = st.secrets["DB_PASS"]
     host = st.secrets["DB_HOST"]
     port = st.secrets["DB_PORT"]
     dbname = st.secrets["DB_NAME"]
     
-    # Construction de l'URL de connexion PostgreSQL
-    url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
-    return create_engine(url)
+    connection_url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    return create_engine(connection_url)
+
+
+# =====================================================================
+# MODULE 2: EXTERNAL LLM API INTERACTION (GROQ CLOUD)
+# Role: Interfaces with the Groq Cloud API using synchronous HTTP POST 
+#       requests to extract and structure unstructured PDF text data into JSON.
+# =====================================================================
 
 def call_groq_cloud(prompt):
-    """Envoie une requête HTTP synchrone à l'API Groq Cloud en utilisant les secrets."""
+    """
+    Dispatches a synchronous payload to the Groq Cloud API.
+    Enforces temperature=0.0 for deterministic extraction and expects JSON output.
+    """
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}", 
+        "Content-Type": "application/json"
+    }
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
         "response_format": {"type": "json_object"}
     }
+    
     response = requests.post(url, headers=headers, json=payload, timeout=30)
     if response.status_code == 200:
         return response.json()['choices'][0]['message']['content']
     else:
-        raise Exception(f"Erreur API Groq (Code {response.status_code}): {response.text}")
+        raise Exception(f"Groq API Error (Status {response.status_code}): {response.text}")
 
 def clean_json_response(raw_text):
-    """Extrait la structure JSON pure en éliminant le texte environnant."""
+    """
+    Sanitizes raw LLM output text using regex.
+    Isolates and extracts the outermost curly brace structure to ensure a valid JSON string.
+    """
     try:
         match = re.search(r'\{.*\}', raw_text, re.DOTALL)
         return match.group(0) if match else raw_text
@@ -57,12 +82,18 @@ def clean_json_response(raw_text):
         return raw_text
 
 
-# --- LOGIQUE DU PARSEUR INTEGRÉE DIRECTEMENT ICI ---
+# =====================================================================
+# MODULE 3: DETERMINISTIC LOCAL DEFECT PARSER (REGULAR EXPRESSIONS)
+# Role: Locally matches and validates standard wire harness defect codes.
+#       Bypasses LLM processing for this specific task to ensure 
+#       100% accuracy, speed, and cost efficiency.
+# =====================================================================
 
-# Ton regex strict et ta liste d'exclusion
+# Strict pattern matching for quality standards (e.g., 1.1.1A, 2A)
 DEFECT_PATTERN = re.compile(r'\b\d\.\d+(?:\.\d+)*[A-Z]\b|\b2[A-N]\b')
 EXCLUDE_KEYWORDS = ["JIRA", "CP22", "TICKET", "SOLL", "IST"]
 
+# Full dictionary of official Quality Audit (QK) defect classification codes
 VALID_DEFECT_CODES = {
     # Page 1 : Crimp & Welded Joints
     "1.1.1A", "1.1.1B", "1.1.1C", "1.1.1D", "1.1.1E", "1.1.1F", "1.1.1G", "1.1.1H", "1.1.1J", "1.1.1K", "1.1.1L", "1.1.1M", "1.1.1N", "1.1.1O", "1.1.1P", "1.1.1Q", "1.1.1R", "1.1.1V", "1.1.1W", "1.1.1X", "1.1.1Z",
@@ -103,6 +134,10 @@ VALID_DEFECT_CODES = {
 }
 
 def clean_and_validate_defect_code(raw_text):
+    """
+    Filters out noisy strings and returns a verified defect code.
+    Excludes systemic keywords (e.g., JIRA tickets) and matches against the validated standard code set.
+    """
     match = DEFECT_PATTERN.search(raw_text)
     if not match:
         return None
@@ -115,7 +150,11 @@ def clean_and_validate_defect_code(raw_text):
     return code
 
 def parse_defects_with_python(page_text):
-    print("🚀 LA NOUVELLE FONCTION EN MEMOIRE S'EXECUTE !") # Ligne de test
+    """
+    Iterates over document page lines to extract and compile all valid defect codes
+    using local regex operations.
+    """
+    print("[Parser Engine] Local Python Regex defect extraction running...", flush=True)
     valid_defects = []
     if page_text:
         for line in page_text.split('\n'):
@@ -123,13 +162,25 @@ def parse_defects_with_python(page_text):
             if validated_code:
                 valid_defects.append(validated_code)
     return valid_defects
-# --------------------------------------------------
+
+
+# =====================================================================
+# MODULE 4: DYNAMIC PDF DOCUMENT DATA EXTRACTION
+# Role: Master coordinator function. It reads the PDF, targets key sheets,
+#       analyzes high-level statistics via LLM, builds dynamic references,
+#       and iterates sequentially to resolve complex structures.
+# =====================================================================
 
 def extract_dynamic_pdf_data(pdf_file_bytes):
-    """Analyzes the PDF and deterministically extracts the summary and detailed harness data."""
+    """
+    Extracts high-level summary and detailed, page-by-page harness audit data 
+    from a multi-page PDF document.
+    """
+    # Open document stream
     doc = fitz.open(stream=pdf_file_bytes, filetype="pdf")
     pages_text = []
     
+    # Text block geometric sorting (top-to-bottom, left-to-right)
     for page in doc:
         blocks = page.get_text("blocks")
         blocks.sort(key=lambda b: (b[1], b[0]))
@@ -142,12 +193,25 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     doc.close()
 
     if not pages_text:
-        raise Exception("The PDF is empty or corrupted.")
+        raise Exception("Fatal Error: The PDF file is empty or corrupted.")
+
+    # Prevent crash at the end if LLM step A fails: Initialize default structure
+    summary_data = {
+        "supplier": None,
+        "plant": "Unknown",
+        "country": None,
+        "report_month": None,
+        "report_year": None,
+        "QK_min": 0.0,
+        "QK_avg": 0.0,
+        "QK_max": 0.0,
+        "audits_count": 0
+    }
 
     # =========================================================================
     # STEP A: Global Summary Extraction (Page 1)
     # =========================================================================
-    print("⚡ [1/3] Extracting Global Summary...", flush=True)
+    print("⚡ [1/3] Extracting Global Monthly Summary (Page 1)...", flush=True)
     first_page_text = pages_text[0]
     
     prompt_summary = f"""
@@ -193,7 +257,9 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     while True:
         try:
             raw_summary = call_groq_cloud(prompt_summary)
-            summary_data = json.loads(clean_json_response(raw_summary))
+            extracted_json = json.loads(clean_json_response(raw_summary))
+            # Merge extracted data into default summary structure
+            summary_data.update(extracted_json)
             break
         except Exception as e:
             if "Rate limit reached" in str(e):
@@ -201,17 +267,17 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 wait_time = float(match_wait.group(1)) if match_wait else 5.0
                 if match_wait and match_wait.group(2) == "ms":
                     wait_time = wait_time / 1000.0
-                print(f"⏳ Rate limiting (Page 1). Waiting for {wait_time + 1}s...", flush=True)
+                print(f"⏳ Rate limit reached (Page 1). Retrying in {wait_time + 1.0}s...", flush=True)
                 time.sleep(wait_time + 1.0)
             else:
                 raise e
 
-    time.sleep(4.5)
+    time.sleep(4.5)  # Cooldown throttle to protect API limits
 
     # =========================================================================
     # STEP B: Master Reference Index Creation (Page 2)
     # =========================================================================
-    print("⚡ [2/3] Creating matching registry (Page 2)...", flush=True)
+    print("⚡ [2/3] Building Audit Master Registry (Page 2 Index)...", flush=True)
     page_2_text = pages_text[1]
     
     prompt_master_table = f"""
@@ -256,10 +322,10 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
             break
         except Exception as e:
             if "Rate limit reached" in str(e):
-                print("⏳ Timeout on master analysis (Page 2)...", flush=True)
+                print("⏳ API Rate limit reached on Page 2 index. Retrying in 6 seconds...", flush=True)
                 time.sleep(6.0)
             else:
-                print(f"⚠️ Unable to create Page 2 registry: {e}. Fallback mode activated.", flush=True)
+                print(f"⚠️ Warning: Registry creation on Page 2 failed ({e}). Proceeding in fallback mode.", flush=True)
                 break
 
     time.sleep(4.5)
@@ -267,19 +333,18 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     # =========================================================================
     # STEP C: Iterative Page-by-Page Harness Extraction (Pages 2+)
     # =========================================================================
-    print("⚡ [3/3] Iterative Harness Extraction...", flush=True)
+    print("⚡ [3/3] Commencing Sequential Iterative Page Extraction...", flush=True)
     all_harnesses = []
 
     for i in range(1, len(pages_text)):
         page_content = pages_text[i]
         page_content_lower = page_content.lower()
         
-        # ❌ MODIFICATION : On ne saute PLUS l'Ergebnisübersicht (Page 2 cruciale pour Zrenjanin)
-        # On ignore uniquement la Jahresübersicht globale
+        # Skip high-level yearly summaries if present
         if "jahresübersicht" in page_content_lower:
             continue
 
-        # Version universelle validant la page d'audits (incluant explicitement l'Ergebnisübersicht)
+        # Validate that the current page is an eligible technical audit data sheet
         is_valid_audit_page = (
             "fahrzeug" in page_content_lower or "vehicule" in page_content_lower or "vehicle" in page_content_lower or
             "sachnummer" in page_content_lower or "sach-nr" in page_content_lower or "part number" in page_content_lower or "reference" in page_content_lower or
@@ -291,21 +356,17 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         if not is_valid_audit_page:
             continue
 
-        # ---------------------------------------------------------------------
-        # 1. ESSAI DE PARSING DES DÉFAUTS (Isolé et sécurisé)
-        # ---------------------------------------------------------------------
+        # --- SUB-STEP C1: LOCAL DEFECT PARSING ---
         try:
             extracted_defects = parse_defects_with_python(page_content)
             if not extracted_defects:
                 extracted_defects = []
         except Exception as defect_err:
-            # Si le parser de défauts plante, on ne bloque pas tout le pipeline !
-            print(f"⚠️ Erreur de parsing des défauts sur la page {i+1} (ignorée) : {defect_err}", flush=True)
+            # Keep the processing fluid even if the regex parsing engine experiences a minor failure
+            print(f"⚠️ Non-blocking Error: Defect extraction on Page {i+1} skipped. Error: {defect_err}", flush=True)
             extracted_defects = []
 
-        # ---------------------------------------------------------------------
-        # 2. EXTRACTION DU RESTE DES DONNÉES (Prompt de structure optimisé)
-        # ---------------------------------------------------------------------
+        # --- SUB-STEP C2: HEADERS & DIMENSION EXTRACTION (LLM CALL) ---
         prompt_single_page = f"""
         Analyze this unstructured layout text from ONE single page of an automotive wire harness product audit report.
         Extract the item header information. Do NOT attempt to extract the raw defects table list.
@@ -314,15 +375,15 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         1. IDENTIFY THE HARNESS ITEM:
             - Look for vehicle codes/projects (e.g., 'PO 426B', 'PO 416').
             - Extract the full description (e.g., 'CSH LL Cockpit/5666625', 'Autark DC-WANDLER').
-            - Extract the drawing/part number which usually starts with 'TAB' (e.g., 'TAB.026.068.CE', 'TAB_010_619_GR')[cite: 1].
+            - Extract the drawing/part number which usually starts with 'TAB' (e.g., 'TAB.026.068.CE', 'TAB_010_619_GR').
 
         2. DATA COLUMN EXTRACTION:
-            - The layout often groups rows with pipe delimiters '|'[cite: 1].
-            - Look closely at aligned numerical matrices like: `| 0.0 | 0 | 0 | 167 260 470 0.7 897 | | Z`[cite: 1].
-            - QK_score is the quality score float. If it is explicitly '0.0' or missing alongside 0 defects, treat it correctly according to the report's logic[cite: 1].
-            - Extract 'count_wires', 'count_contacts', and 'count_components' from the combined metrics block (e.g., '167 260 470' means wires=167, contacts=260, components=470)[cite: 1].
-            - Extract the 'calculation_factor' float (e.g., 0.7 or 0.4)[cite: 1].
-            - Audit Type mapping: If 'Z' or 'Zerstörend' is flagged, use 'Z'. If 'P' or 'Partiell', use 'P'[cite: 1].
+            - The layout often groups rows with pipe delimiters '|'.
+            - Look closely at aligned numerical matrices like: `| 0.0 | 0 | 0 | 167 260 470 0.7 897 | | Z`.
+            - QK_score is the quality score float. If it is explicitly '0.0' or missing alongside 0 defects, treat it correctly according to the report's logic.
+            - Extract 'count_wires', 'count_contacts', and 'count_components' from the combined metrics block (e.g., '167 260 470' means wires=167, contacts=260, components=470).
+            - Extract the 'calculation_factor' float (e.g., 0.7 or 0.4).
+            - Audit Type mapping: If 'Z' or 'Zerstörend' is flagged, use 'Z'. If 'P' or 'Partiell', use 'P'.
 
         Return a single valid JSON object matching this format exactly:
         {{
@@ -342,8 +403,6 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         {page_content}
         """
         
-        # ... (Ici ton code d'appel à Groq / LLM traite le prompt_single_page) ...
-        
         success = False
         while not success:
             print(f"📄 Processing Page {i+1}/{len(pages_text)}...", flush=True)
@@ -356,6 +415,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 
                 drawing_no = str(harness_obj.get("drawing_number", "")).strip()
                 
+                # Match local page results with high-level master registry keys (Step B)
                 matched_master = None
                 for key, val in harness_registry.items():
                     if key in drawing_no or drawing_no in key:
@@ -372,12 +432,14 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                     except (ValueError, TypeError):
                         harness_obj["QK_score"] = 0.0
                 
+                # Ensure numerical integrity
                 for field in ["count_wires", "count_contacts", "count_components"]:
                     try:
                         harness_obj[field] = int(str(harness_obj.get(field, "0")).strip())
                     except ValueError:
                         harness_obj[field] = 0
 
+                # Append regex extracted defects directly into the final harness payload
                 harness_obj["raw_defects_list"] = extracted_defects
                 harness_obj["defect_count"] = len(extracted_defects)
                 harness_obj["defect_points"] = 0
@@ -390,17 +452,20 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 if "Rate limit reached" in str(e):
                     match_wait = re.search(r"try again in ([0-9.]+)(s|ms)", str(e))
                     wait_time = float(match_wait.group(1)) if match_wait else 5.0
+                    print(f"⏳ Rate limit reached (Page {i+1}). Waiting {wait_time + 1.5}s before retry...", flush=True)
                     time.sleep(wait_time + 1.5)
                 else:
-                    print(f"⚠️ Processing error ignored on page {i+1}: {e}", flush=True)
-                    success = True  
+                    print(f"⚠️ Process Warning: Skipping unreadable structure on Page {i+1}. Error: {e}", flush=True)
+                    success = True  # Avoid infinite loop on layout/formatting issues
                     time.sleep(3.0)
 
     # =========================================================================
-    # PIPELINE RETURN GUARD LAUNCHPAD
+    # MODULE 5: PIPELINE RETURN GUARD
+    # Role: Performs post-extraction checks, calculates backup averages
+    #       for summary metrics if missing, and outputs normalized results.
     # =========================================================================
     if not all_harnesses:
-        print("❌ Critical Failure: Zero harness items were populated.", flush=True)
+        print("❌ Critical Error: Pipeline completed with zero processed harness entries.", flush=True)
         return {"audits_count": 0, "user_email": None}, []
 
     try:
@@ -408,6 +473,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         summary_data["QK_avg"] = float(str(summary_data.get("QK_avg", 0.0)).replace(",", "."))
         summary_data["QK_max"] = float(str(summary_data.get("QK_max", 0.0)).replace(",", "."))
     except (ValueError, TypeError):
+        # Fallback metric calculation based on actual processed pages if initial summary extraction was incomplete
         scores = [h.get('QK_score', 0.0) for h in all_harnesses]
         summary_data["QK_min"] = min(scores) if scores else 0.0
         summary_data["QK_avg"] = sum(scores)/len(scores) if scores else 0.0
