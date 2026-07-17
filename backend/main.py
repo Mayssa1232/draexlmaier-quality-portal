@@ -230,14 +230,14 @@ def save_to_database(summary, details, defects_list, occurrences_list, username,
                 # 1. Calculate unique MD5 hash from the file bytes
                 pdf_hash = hashlib.md5(file_bytes).hexdigest()
                 
-                # 2. Insert summary only if this exact report/file combination doesn't exist for the plant/supplier
+                # 2. Insert summary using only plant and internal metadata (no supplier field)
                 cur.execute("""
                     INSERT INTO public.monthly_summaries
-                    (supplier, plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count, pdf_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
-                    ON CONFLICT (plant, supplier, report_month, report_year, pdf_hash) DO NOTHING
+                    (plant, country, report_month, report_year, QK_min, QK_avg, QK_max, audits_count, pdf_hash)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                    ON CONFLICT (plant, report_month, report_year, pdf_hash) DO NOTHING
                     RETURNING summary_id;
-                """, (summary.get('supplier', 'Interne'), summary['plant'], summary['country'],
+                """, (summary['plant'], summary['country'],
                     str(summary['report_month']), str(summary['report_year']),
                     summary['QK_min'], summary['QK_avg'], summary['QK_max'], summary['audits_count'], pdf_hash))
                 

@@ -59,7 +59,16 @@ def call_groq_cloud(prompt):
     }
     payload = {
         "model": "llama-3.1-8b-instant",
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {
+                "role": "system", 
+                "content": "You are a data extraction assistant. You must output raw valid JSON code only. Do not wrap your response in markdown formatting block."
+            },
+            {
+                "role": "user", 
+                "content": prompt
+            }
+        ],
         "temperature": 0.0,
         "response_format": {"type": "json_object"}
     }
@@ -195,9 +204,8 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     if not pages_text:
         raise Exception("Fatal Error: The PDF file is empty or corrupted.")
 
-    # Prevent crash at the end if LLM step A fails: Initialize default structure
+    # Fixed Structure: Removed 'supplier' entirely to match organizational layout
     summary_data = {
-        "supplier": None,
         "plant": "Unknown",
         "country": None,
         "report_month": None,
@@ -214,9 +222,11 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     print("⚡ [1/3] Extracting Global Monthly Summary (Page 1)...", flush=True)
     first_page_text = pages_text[0]
     
+    # Updated prompt emphasizing the required output string format must contain JSON
     prompt_summary = f"""
     You are a rigid Data Engineering Extraction Pipeline for Volkswagen/Dräxlmaier automotive quality audits.
     Your sole task is to convert the global monthly summary page text into a precise JSON object matching a strict schema.
+    Ensure that the output returned is valid raw JSON code.
 
     CRITICAL INSTRUCTIONS FOR DYNAMIC PLANT, COUNTRY, AND QK EXTRACTION:
     
@@ -235,11 +245,10 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     3. DATE CONVERSION:
             Convert the German month name under "Monat / Jahr" to a two-digit numeric string.
             Mapping: Januar->01, Februar->02, März->03, April->04, Mai->05, Juni->06, Juli->07, August->08, September->09, Oktober->10, November->11, Dezember->12.
-        - E-xtract the 4-digit year (e.g., "2026").
+        - Extract the 4-digit year (e.g., "2026").
 
     Return a comprehensive valid JSON object matching this structure exactly:
     {{
-        "supplier": "Exact company name found under 'Firma' or 'Von' (e.g., 'Dräxlmaier Group')",
         "plant": "Exact plant site name string (e.g., 'DAD Zrenjanin')",
         "country": "Extract the country name if present (e.g., 'Serbien')",
         "report_month": "Two-digit month numeric string, e.g. '06'",
@@ -282,7 +291,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
     
     prompt_master_table = f"""
     You are a precise data extraction specialist. Analyze this summary table from Page 2 of a Volkswagen/Dräxlmaier audit report.
-    Extract EVERY harness row listed in the main table.
+    Extract EVERY harness row listed in the main table. Output must be a valid JSON layout structure.
 
     Be careful with shifted layouts or merged columns (like HV and QK columns). Map the QK score to its correct row even if columns look misaligned.
     Convert any commas to dots in numerical fields.
@@ -370,6 +379,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
         prompt_single_page = f"""
         Analyze this unstructured layout text from ONE single page of an automotive wire harness product audit report.
         Extract the item header information. Do NOT attempt to extract the raw defects table list.
+        The result must return precise JSON fields.
 
         CRITICAL INSTRUCTIONS FOR ROBUST PARSING (ESPECIALLY WITH PIPES '|' & ZERO DEFECTS):
         1. IDENTIFY THE HARNESS ITEM:
@@ -443,7 +453,7 @@ def extract_dynamic_pdf_data(pdf_file_bytes):
                 harness_obj["raw_defects_list"] = extracted_defects
                 harness_obj["defect_count"] = len(extracted_defects)
                 harness_obj["defect_points"] = 0
-                                
+                                        
                 all_harnesses.append(harness_obj)
                 success = True 
                 time.sleep(4.5)
